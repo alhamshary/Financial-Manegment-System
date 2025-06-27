@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Clock, DollarSign, Users, Wrench, Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
@@ -53,16 +53,19 @@ function EmployeeDashboard() {
   
   const [servicesToday, setServicesToday] = useState<EmployeeServiceLog[]>([]);
   const [loadingServices, setLoadingServices] = useState(true);
+  const [dataFetchedForDate, setDataFetchedForDate] = useState<string | null>(null);
 
-  const fetchEmployeeData = async () => {
+  const fetchEmployeeData = useCallback(async () => {
     if (!user) return;
-    setLoadingServices(true);
-
+    
     const todayIso = new Date().toISOString().split('T')[0];
+    if (dataFetchedForDate !== todayIso) {
+      setLoadingServices(true);
+    }
+
     const todayStart = `${todayIso}T00:00:00.000Z`;
     const todayEnd = `${todayIso}T23:59:59.999Z`;
 
-    // Fetch services
     const { data: servicesData, error: servicesError } = await supabase
       .from('orders')
       .select('id, total, services(name), clients(name)')
@@ -75,14 +78,48 @@ function EmployeeDashboard() {
       toast({ title: "خطأ في جلب الخدمات", description: servicesError.message, variant: 'destructive' });
     } else {
       setServicesToday((servicesData as EmployeeServiceLog[]) || []);
+      setDataFetchedForDate(todayIso);
     }
     setLoadingServices(false);
-  };
+  }, [user, toast, dataFetchedForDate]);
   
   useEffect(() => {
-    fetchEmployeeData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+    if (user) {
+        fetchEmployeeData();
+    }
+  }, [user, fetchEmployeeData]);
+
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel(`employee-dashboard-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'orders', filter: `user_id=eq.${user.id}` },
+        () => fetchEmployeeData()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, fetchEmployeeData]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        const todayIso = new Date().toISOString().split('T')[0];
+        if (dataFetchedForDate && dataFetchedForDate !== todayIso) {
+          fetchEmployeeData();
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [dataFetchedForDate, fetchEmployeeData]);
+
 
   return (
     <div className="grid gap-6">
@@ -135,11 +172,15 @@ function AdminManagerDashboard() {
   });
   const [logs, setLogs] = useState<AdminServiceLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dataFetchedForDate, setDataFetchedForDate] = useState<string | null>(null);
   
-  const fetchAdminData = async () => {
-    setLoading(true);
-
+  const fetchAdminData = useCallback(async () => {
     const todayIso = new Date().toISOString().split('T')[0];
+    
+    if (dataFetchedForDate !== todayIso) {
+        setLoading(true);
+    }
+
     const todayStart = `${todayIso}T00:00:00.000Z`;
     const todayEnd = `${todayIso}T23:59:59.999Z`;
 
@@ -154,7 +195,6 @@ function AdminManagerDashboard() {
         supabase
           .from('users')
           .select('id', { count: 'exact', head: true }),
-        // Single query for all of today's attendance records
         supabase
           .from('attendance')
           .select('user_id, session_duration')
@@ -167,18 +207,13 @@ function AdminManagerDashboard() {
 
       const ordersData = (ordersRes.data as AdminServiceLog[]) || [];
       setLogs(ordersData);
+      setDataFetchedForDate(todayIso);
       
       const totalRevenue = ordersData.reduce((acc: number, log: any) => acc + (log.total || 0), 0);
       const servicesSold = ordersData.length;
-
       const todaysAttendanceData = todaysAttendanceRes.data || [];
-
-      // Correctly calculate active employees as unique users with any attendance today
       const activeEmployees = new Set(todaysAttendanceData.map(a => a.user_id)).size;
-      
       const totalEmployees = totalUsersRes.count || 0;
-
-      // Calculate average work hours from completed sessions
       const completedSessions = todaysAttendanceData.filter(a => a.session_duration);
       const totalMinutes = completedSessions.reduce((acc, item) => acc + (item.session_duration || 0), 0);
       const employeesWhoWorked = new Set(completedSessions.map(a => a.user_id)).size;
@@ -197,12 +232,41 @@ function AdminManagerDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast, dataFetchedForDate]);
 
   useEffect(() => {
     fetchAdminData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchAdminData]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('admin-dashboard')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'orders' },
+        () => fetchAdminData()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchAdminData]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        const todayIso = new Date().toISOString().split('T')[0];
+        if (dataFetchedForDate && dataFetchedForDate !== todayIso) {
+          fetchAdminData();
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [dataFetchedForDate, fetchAdminData]);
 
   return (
     <div className="grid gap-6">
@@ -296,7 +360,6 @@ export default function DashboardPage() {
     setIsMounted(true);
   }, []);
 
-  // Prevent rendering on the server to avoid hydration errors from new Date() in children
   if (!isMounted) {
     return (
        <AppLayout>
