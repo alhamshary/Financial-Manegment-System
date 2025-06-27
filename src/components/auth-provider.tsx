@@ -33,6 +33,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       const currentUser = session?.user;
       if (currentUser) {
+        // Automatically start an attendance session. The RPC handles cases where a session is already active.
+        await supabase.rpc('auto_start_attendance', { user_id_param: currentUser.id });
+        
         // Fetch profile from public 'users' table
         const { data: profile } = await supabase
           .from('users')
@@ -93,6 +96,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
+    if (user) {
+      await supabase.rpc('end_current_attendance', { user_id_param: user.id });
+    }
     await supabase.auth.signOut();
     // onAuthStateChange will handle cleanup and we redirect here
     router.push('/');

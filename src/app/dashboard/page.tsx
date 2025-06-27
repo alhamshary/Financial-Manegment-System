@@ -7,7 +7,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Clock, DollarSign, Users, Wrench, Loader2 } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
-import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
@@ -24,24 +23,98 @@ type AdminServiceLog = (Tables<'orders'> & {
   clients: Pick<Tables<'clients'>, 'name'> | null;
 });
 
+function SessionTimerCard() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [sessionStartTime, setSessionStartTime] = useState<string | null>(null);
+  const [sessionDuration, setSessionDuration] = useState('00:00:00');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchActiveSession = async () => {
+      setLoading(true);
+      const todayIso = new Date().toISOString().split('T')[0];
+      const { data, error } = await supabase
+        .from('attendance')
+        .select('check_in')
+        .eq('user_id', user.id)
+        .eq('work_date', todayIso)
+        .is('check_out', null)
+        .order('check_in', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // Ignore "No rows found"
+        toast({ title: "Error fetching session", description: error.message, variant: 'destructive' });
+      } else if (data) {
+        setSessionStartTime(data.check_in);
+      }
+      setLoading(false);
+    };
+
+    fetchActiveSession();
+  }, [user, toast]);
+
+  useEffect(() => {
+    if (!sessionStartTime) {
+      setSessionDuration('00:00:00');
+      return;
+    }
+
+    const timer = setInterval(() => {
+      const start = new Date(sessionStartTime).getTime();
+      const now = new Date().getTime();
+      const difference = now - start;
+
+      if (difference < 0) {
+        setSessionDuration('00:00:00');
+        clearInterval(timer);
+        return;
+      }
+
+      const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((difference % (1000 * 60)) / 1000);
+
+      setSessionDuration(
+        `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+      );
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [sessionStartTime]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Current Session Duration</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <Loader2 className="h-8 w-8 animate-spin" />
+        ) : (
+          <div className="text-4xl font-bold tracking-wider">{sessionDuration}</div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 
 function EmployeeDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [time, setTime] = useState<Date | null>(null);
   
   const [servicesToday, setServicesToday] = useState<EmployeeServiceLog[]>([]);
   const [loadingServices, setLoadingServices] = useState(true);
-  
-  const [isCheckedIn, setIsCheckedIn] = useState<boolean | null>(null);
-  const [loadingAttendance, setLoadingAttendance] = useState(true);
 
   const todayIso = new Date().toISOString().split('T')[0];
 
   const fetchEmployeeData = async () => {
     if (!user) return;
     setLoadingServices(true);
-    setLoadingAttendance(true);
 
     const todayStart = `${todayIso}T00:00:00.000Z`;
     const todayEnd = `${todayIso}T23:59:59.999Z`;
@@ -61,79 +134,16 @@ function EmployeeDashboard() {
       setServicesToday((servicesData as any) || []);
     }
     setLoadingServices(false);
-    
-    // Fetch attendance status
-    const { data: attendanceData, error: attendanceError } = await supabase
-      .from('attendance')
-      .select('id, check_out')
-      .eq('user_id', user.id)
-      .eq('work_date', todayIso)
-      .is('check_out', null)
-      .single();
-
-    if (attendanceError && attendanceError.code !== 'PGRST116') { // Ignore "No rows found"
-        toast({ title: "Error fetching attendance", description: attendanceError.message, variant: 'destructive' });
-    } else if (attendanceData) {
-        setIsCheckedIn(true);
-    } else {
-        setIsCheckedIn(false);
-    }
-    setLoadingAttendance(false);
   };
   
   useEffect(() => {
     fetchEmployeeData();
-    setTime(new Date());
-    const timerId = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(timerId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  const handleCheckIn = async () => {
-    if (!user) return;
-    setLoadingAttendance(true);
-    const { error } = await supabase.rpc('auto_start_attendance', { user_id_param: user.id });
-    if (error) {
-        toast({ title: "Check-in failed", description: error.message, variant: 'destructive' });
-    } else {
-        toast({ title: "Checked In", description: "Your work session has started." });
-        setIsCheckedIn(true);
-    }
-    setLoadingAttendance(false);
-  };
-  
-  const handleCheckOut = async () => {
-    if (!user) return;
-    setLoadingAttendance(true);
-    const { error } = await supabase.rpc('end_current_attendance', { user_id_param: user.id });
-    if (error) {
-        toast({ title: "Check-out failed", description: error.message, variant: 'destructive' });
-    } else {
-        toast({ title: "Checked Out", description: "Your work session has ended." });
-        setIsCheckedIn(false);
-    }
-    setLoadingAttendance(false);
-  };
-
   return (
     <div className="grid gap-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Live Clock & Check-in/out</CardTitle>
-        </CardHeader>
-        <CardContent className="flex items-center justify-between">
-          <div className="text-4xl font-bold">{time ? time.toLocaleTimeString() : '--:--:--'}</div>
-          <div className="flex gap-2">
-            {loadingAttendance ? (
-              <Button variant="outline" disabled><Loader2 className="animate-spin" />Loading...</Button>
-            ) : isCheckedIn ? (
-              <Button variant="destructive" onClick={handleCheckOut}>Check Out</Button>
-            ) : (
-              <Button variant="outline" onClick={handleCheckIn}>Check In</Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <SessionTimerCard />
       <Card>
         <CardHeader>
           <CardTitle>Your Services Today</CardTitle>
@@ -254,6 +264,7 @@ function AdminManagerDashboard() {
 
   return (
     <div className="grid gap-6">
+       <SessionTimerCard />
        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
