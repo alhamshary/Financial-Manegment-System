@@ -12,12 +12,13 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useEffect, useState } from "react";
-import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
+import { Check, ChevronsUpDown, Loader2, Link as LinkIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
 import { useAuth } from "@/hooks/use-auth";
+import { Textarea } from "@/components/ui/textarea";
 
 type Service = Tables<'services'>;
 
@@ -27,6 +28,7 @@ const formSchema = z.object({
   clientPhone: z.string().min(10, { message: "Valid phone number is required." }),
   quantity: z.coerce.number().min(1, { message: "Quantity must be at least 1." }),
   discount: z.coerce.number().min(0).optional().default(0),
+  notes: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -50,6 +52,7 @@ export default function SubmitServicePage() {
       clientPhone: "",
       quantity: 1,
       discount: 0,
+      notes: "",
     },
   });
   
@@ -120,6 +123,7 @@ export default function SubmitServicePage() {
             quantity: values.quantity,
             discount: values.discount,
             total: finalPrice,
+            notes: values.notes || null,
         };
 
         const { error: orderError } = await supabase.from('orders').insert(orderData);
@@ -232,13 +236,19 @@ export default function SubmitServicePage() {
                 
                 {selectedService && (
                    <div className="flex flex-col space-y-1.5">
-                     <FormLabel>Price Details</FormLabel>
-                     <div className="flex items-center p-2 border rounded-md h-10">
-                       <p className="text-sm text-muted-foreground">
-                         Base Price: ${selectedService.price.toFixed(2)}
-                         {selectedService.category && <span className="mx-2">|</span>}
-                         {selectedService.category && `Category: ${selectedService.category}`}
-                       </p>
+                     <FormLabel>Service Details</FormLabel>
+                      <div className="flex items-center justify-between p-2 border rounded-md h-10">
+                        <p className="text-sm text-muted-foreground">
+                            Base Price: ${selectedService.price.toFixed(2)}
+                            {selectedService.category && <span className="mx-2">|</span>}
+                            {selectedService.category && `Category: ${selectedService.category}`}
+                        </p>
+                        {selectedService.link && (
+                            <a href={selectedService.link} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1 text-sm">
+                                <LinkIcon className="h-4 w-4" />
+                                <span>View Link</span>
+                            </a>
+                        )}
                      </div>
                    </div>
                 )}
@@ -298,6 +308,26 @@ export default function SubmitServicePage() {
                     </FormItem>
                   )}
                 />
+
+                 <div className="md:col-span-2">
+                    <FormField
+                    control={form.control}
+                    name="notes"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Notes (Optional)</FormLabel>
+                        <FormControl>
+                            <Textarea
+                            placeholder="Add any notes about the service or client here..."
+                            className="resize-none"
+                            {...field}
+                            />
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                </div>
               </div>
 
               <div className="flex items-center justify-between pt-4 border-t">
