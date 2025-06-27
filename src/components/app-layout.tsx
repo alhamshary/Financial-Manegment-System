@@ -24,7 +24,7 @@ interface AppLayoutProps {
 export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const [officeTitle, setOfficeTitle] = useState("Office Title");
+  const [officeTitle, setOfficeTitle] = useState("عنوان المكتب");
   
   useEffect(() => {
     if (!loading && !user) {
@@ -39,11 +39,13 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     const savedTitle = localStorage.getItem('officeTitle');
     if (savedTitle) {
       setOfficeTitle(savedTitle);
+    } else {
+        setOfficeTitle("عنوان المكتب");
     }
 
     const handleStorageChange = () => {
       const updatedTitle = localStorage.getItem('officeTitle');
-      setOfficeTitle(updatedTitle || "Office Title");
+      setOfficeTitle(updatedTitle || "عنوان المكتب");
     };
 
     window.addEventListener('storage', handleStorageChange);
@@ -64,7 +66,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     <SidebarProvider>
       <Sidebar>
         <SidebarHeader className="p-4">
-          <h1 className="text-2xl font-bold text-sidebar-foreground">Alhamshary</h1>
+          <h1 className="text-2xl font-bold text-sidebar-foreground">الهمشري</h1>
         </SidebarHeader>
         <SidebarContent>
           <MainNav role={user.role} />

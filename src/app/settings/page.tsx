@@ -13,12 +13,12 @@ import { applyTheme } from "@/components/theme-provider";
 
 export default function SettingsPage() {
   const { toast } = useToast();
-  const [officeTitle, setOfficeTitle] = useState("Main Office");
+  const [officeTitle, setOfficeTitle] = useState("المكتب الرئيسي");
   const [theme, setTheme] = useState("theme-default");
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    const savedTitle = localStorage.getItem("officeTitle") || "Main Office";
+    const savedTitle = localStorage.getItem("officeTitle") || "المكتب الرئيسي";
     const savedTheme = localStorage.getItem("appTheme") || "theme-default";
     setOfficeTitle(savedTitle);
     setTheme(savedTheme);
@@ -30,8 +30,8 @@ export default function SettingsPage() {
     localStorage.setItem("appTheme", theme);
     applyTheme(theme);
     toast({
-      title: "Settings Saved",
-      description: "Your changes have been successfully saved.",
+      title: "تم حفظ الإعدادات",
+      description: "تم حفظ تغييراتك بنجاح.",
     });
   };
 
@@ -43,31 +43,31 @@ export default function SettingsPage() {
   return (
     <AppLayout allowedRoles={['admin']}>
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+        <h1 className="text-3xl font-bold tracking-tight">الإعدادات</h1>
         <p className="text-muted-foreground">
-          Manage your application settings.
+          إدارة إعدادات التطبيق الخاص بك.
         </p>
       </div>
 
       <Card className="mt-6">
         <CardHeader>
-          <CardTitle>General Settings</CardTitle>
-          <CardDescription>Adjust general settings for the application.</CardDescription>
+          <CardTitle>الإعدادات العامة</CardTitle>
+          <CardDescription>ضبط الإعدادات العامة للتطبيق.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-2">
-            <Label htmlFor="office-title">Office Title</Label>
+            <Label htmlFor="office-title">عنوان المكتب</Label>
             <Input
               id="office-title"
               value={officeTitle}
               onChange={(e) => setOfficeTitle(e.target.value)}
             />
             <p className="text-sm text-muted-foreground">
-              This will be displayed in the header.
+              سيتم عرض هذا في الترويسة.
             </p>
           </div>
           <div className="space-y-2">
-            <Label>Color Theme</Label>
+            <Label>سمة اللون</Label>
             <RadioGroup
               value={theme}
               onValueChange={setTheme}
@@ -83,7 +83,7 @@ export default function SettingsPage() {
                       <span className="w-6 h-6 rounded-full" style={{backgroundColor: 'var(--bg)'}}></span>
                       <span className="w-6 h-6 rounded-full" style={{backgroundColor: 'var(--accent)'}}></span>
                    </span>
-                  Default
+                  افتراضي
                 </Label>
               </div>
                <div>
@@ -96,7 +96,7 @@ export default function SettingsPage() {
                       <span className="w-6 h-6 rounded-full" style={{backgroundColor: 'var(--bg)'}}></span>
                       <span className="w-6 h-6 rounded-full" style={{backgroundColor: 'var(--accent)'}}></span>
                    </span>
-                  Rose
+                  وردي
                 </Label>
               </div>
               <div>
@@ -109,7 +109,7 @@ export default function SettingsPage() {
                       <span className="w-6 h-6 rounded-full" style={{backgroundColor: 'var(--bg)'}}></span>
                       <span className="w-6 h-6 rounded-full" style={{backgroundColor: 'var(--accent)'}}></span>
                    </span>
-                  Green
+                  أخضر
                 </Label>
               </div>
                <div>
@@ -122,14 +122,14 @@ export default function SettingsPage() {
                       <span className="w-6 h-6 rounded-full" style={{backgroundColor: 'var(--bg)'}}></span>
                       <span className="w-6 h-6 rounded-full" style={{backgroundColor: 'var(--accent)'}}></span>
                    </span>
-                  Orange
+                  برتقالي
                 </Label>
               </div>
             </RadioGroup>
           </div>
         </CardContent>
         <CardFooter className="border-t px-6 py-4">
-          <Button onClick={handleSave}>Save Changes</Button>
+          <Button onClick={handleSave}>حفظ التغييرات</Button>
         </CardFooter>
       </Card>
     </AppLayout>

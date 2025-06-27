@@ -51,7 +51,7 @@ export default function ServicesPage() {
       .order('name', { ascending: true });
 
     if (error) {
-      toast({ title: "Error fetching services", description: error.message, variant: 'destructive' });
+      toast({ title: "خطأ في جلب الخدمات", description: error.message, variant: 'destructive' });
     } else {
       setServices(data || []);
     }
@@ -93,9 +93,9 @@ export default function ServicesPage() {
         .eq('id', editingService.id);
       
       if (error) {
-        toast({ title: "Error updating service", description: error.message, variant: 'destructive' });
+        toast({ title: "خطأ في تحديث الخدمة", description: error.message, variant: 'destructive' });
       } else {
-        toast({ title: "Service Updated", description: `"${values.name}" has been successfully updated.` });
+        toast({ title: "تم تحديث الخدمة", description: `تم تحديث "${values.name}" بنجاح.` });
         await fetchServices();
       }
     } else {
@@ -105,9 +105,9 @@ export default function ServicesPage() {
         .insert(serviceData as TablesInsert<'services'>);
       
       if (error) {
-        toast({ title: "Error adding service", description: error.message, variant: 'destructive' });
+        toast({ title: "خطأ في إضافة الخدمة", description: error.message, variant: 'destructive' });
       } else {
-        toast({ title: "Service Added", description: `"${values.name}" has been successfully added.` });
+        toast({ title: "تمت إضافة الخدمة", description: `تمت إضافة "${values.name}" بنجاح.` });
         await fetchServices();
       }
     }
@@ -122,9 +122,9 @@ export default function ServicesPage() {
         .eq('id', deletingService.id);
 
       if (error) {
-        toast({ title: "Error deleting service", description: error.message, variant: 'destructive' });
+        toast({ title: "خطأ في حذف الخدمة", description: error.message, variant: 'destructive' });
       } else {
-        toast({ title: "Service Deleted", description: `"${deletingService.name}" has been successfully deleted.`, variant: 'destructive' });
+        toast({ title: "تم حذف الخدمة", description: `تم حذف "${deletingService.name}" بنجاح.`, variant: 'destructive' });
         await fetchServices();
       }
       handleCloseDialogs();
@@ -135,31 +135,31 @@ export default function ServicesPage() {
     <AppLayout allowedRoles={['admin', 'manager']}>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Service Management</h1>
+          <h1 className="text-3xl font-bold tracking-tight">إدارة الخدمات</h1>
           <p className="text-muted-foreground">
-            Add, edit, or delete services offered.
+            إضافة أو تعديل أو حذف الخدمات المقدمة.
           </p>
         </div>
         <Button onClick={handleOpenAddDialog}>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Add Service
+          <PlusCircle className="ml-2 h-4 w-4" />
+          إضافة خدمة
         </Button>
       </div>
 
       <Card className="mt-6">
         <CardHeader>
-          <CardTitle>All Services</CardTitle>
-          <CardDescription>A list of all available services from the database.</CardDescription>
+          <CardTitle>جميع الخدمات</CardTitle>
+          <CardDescription>قائمة بجميع الخدمات المتاحة من قاعدة البيانات.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Service Name</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Link</TableHead>
-                <TableHead className="text-right">Price</TableHead>
-                <TableHead className="w-[50px]">Actions</TableHead>
+                <TableHead>اسم الخدمة</TableHead>
+                <TableHead>الفئة</TableHead>
+                <TableHead>الرابط</TableHead>
+                <TableHead className="text-end">السعر</TableHead>
+                <TableHead className="w-[50px]">الإجراءات</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -172,7 +172,7 @@ export default function ServicesPage() {
               ) : services.length === 0 ? (
                  <TableRow>
                   <TableCell colSpan={5} className="text-center h-24">
-                    No services found.
+                    لم يتم العثور على خدمات.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -189,19 +189,19 @@ export default function ServicesPage() {
                         </a>
                       )}
                     </TableCell>
-                    <TableCell className="text-right">${service.price.toFixed(2)}</TableCell>
+                    <TableCell className="text-end">${service.price.toFixed(2)}</TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
+                            <span className="sr-only">فتح القائمة</span>
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => handleOpenEditDialog(service)}>Edit</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setDeletingService(service)} className="text-destructive">Delete</DropdownMenuItem>
+                          <DropdownMenuLabel>الإجراءات</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => handleOpenEditDialog(service)}>تعديل</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setDeletingService(service)} className="text-destructive">حذف</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -217,9 +217,9 @@ export default function ServicesPage() {
       <Dialog open={isAddOrEditDialogOpen} onOpenChange={(isOpen) => !isOpen && handleCloseDialogs()}>
         <DialogContent className="sm:max-w-[425px]" onInteractOutside={handleCloseDialogs}>
           <DialogHeader>
-            <DialogTitle>{editingService ? "Edit Service" : "Add New Service"}</DialogTitle>
+            <DialogTitle>{editingService ? "تعديل الخدمة" : "إضافة خدمة جديدة"}</DialogTitle>
             <DialogDescription>
-              {editingService ? "Update the details of this service." : "Fill in the details for the new service."}
+              {editingService ? "تحديث تفاصيل هذه الخدمة." : "املأ تفاصيل الخدمة الجديدة."}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
@@ -237,14 +237,14 @@ export default function ServicesPage() {
       <AlertDialog open={!!deletingService} onOpenChange={() => setDeletingService(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to delete this service?</AlertDialogTitle>
+            <AlertDialogTitle>هل أنت متأكد أنك تريد حذف هذه الخدمة؟</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the service "{deletingService?.name}". This may fail if the service has been used in any orders.
+              لا يمكن التراجع عن هذا الإجراء. سيؤدي هذا إلى حذف الخدمة "{deletingService?.name}" نهائيًا. قد يفشل هذا الإجراء إذا تم استخدام الخدمة في أي طلبات.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleCloseDialogs}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteService} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+            <AlertDialogCancel onClick={handleCloseDialogs}>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteService} className="bg-destructive hover:bg-destructive/90">حذف</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

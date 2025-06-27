@@ -19,10 +19,10 @@ import type { Tables } from "@/lib/database.types";
 type Service = Tables<'services'>;
 
 const formSchema = z.object({
-  name: z.string().min(2, { message: "Service name must be at least 2 characters." }),
+  name: z.string().min(2, { message: "اسم الخدمة يجب أن لا يقل عن حرفين." }),
   category: z.string().optional(),
-  price: z.coerce.number().min(0, { message: "Price must be a positive number." }),
-  link: z.string().url({ message: "Please enter a valid URL." }).optional().or(z.literal('')),
+  price: z.coerce.number().min(0, { message: "السعر يجب أن يكون رقمًا موجبًا." }),
+  link: z.string().url({ message: "الرجاء إدخال رابط صحيح." }).optional().or(z.literal('')),
 });
 
 type ServiceFormValues = z.infer<typeof formSchema>;
@@ -52,9 +52,9 @@ export function ServiceForm({ onSubmit, onCancel, initialData }: ServiceFormProp
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Service Name</FormLabel>
+              <FormLabel>اسم الخدمة</FormLabel>
               <FormControl>
-                <Input placeholder="e.g., Haircut" {...field} />
+                <Input placeholder="مثال: قص شعر" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -65,9 +65,9 @@ export function ServiceForm({ onSubmit, onCancel, initialData }: ServiceFormProp
           name="category"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Category (Optional)</FormLabel>
+              <FormLabel>الفئة (اختياري)</FormLabel>
               <FormControl>
-                <Input placeholder="e.g., Styling" {...field} />
+                <Input placeholder="مثال: تصفيف" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -78,7 +78,7 @@ export function ServiceForm({ onSubmit, onCancel, initialData }: ServiceFormProp
           name="price"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Price ($)</FormLabel>
+              <FormLabel>السعر ($)</FormLabel>
               <FormControl>
                 <Input type="number" {...field} />
               </FormControl>
@@ -91,7 +91,7 @@ export function ServiceForm({ onSubmit, onCancel, initialData }: ServiceFormProp
           name="link"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Website Link (Optional)</FormLabel>
+              <FormLabel>رابط الموقع (اختياري)</FormLabel>
               <FormControl>
                 <Input placeholder="https://example.com" {...field} />
               </FormControl>
@@ -100,8 +100,8 @@ export function ServiceForm({ onSubmit, onCancel, initialData }: ServiceFormProp
           )}
         />
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
-          <Button type="submit">Save</Button>
+          <Button type="button" variant="ghost" onClick={onCancel}>إلغاء</Button>
+          <Button type="submit">حفظ</Button>
         </div>
       </form>
     </Form>

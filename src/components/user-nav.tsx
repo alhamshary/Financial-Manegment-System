@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -20,11 +21,8 @@ export function UserNav() {
   if (!user) return null;
 
   const getInitials = (name: string) => {
-    const names = name.split(' ');
-    if (names.length > 1) {
-      return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
-    }
-    return name.substring(0, 2).toUpperCase();
+    if (!name) return '';
+    return (name.trim().split(' ')[0]?.[0] || '').toUpperCase();
   }
 
   return (
@@ -49,14 +47,14 @@ export function UserNav() {
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem>
-            <UserIcon className="mr-2 h-4 w-4" />
-            <span>Profile</span>
+            <UserIcon className="ml-2 h-4 w-4" />
+            <span>الملف الشخصي</span>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={logout}>
-          <LogOut className="mr-2 h-4 w-4" />
-          <span>Log out</span>
+          <LogOut className="ml-2 h-4 w-4" />
+          <span>تسجيل الخروج</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

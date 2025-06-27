@@ -12,12 +12,18 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { UserForm, type UserFormValues } from "@/components/user-form";
+import { UserForm, type UserFormValues, type UserRole } from "@/components/user-form";
 import { useToast } from "@/hooks/use-toast";
-import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
+import type { Tables } from "@/lib/database.types";
 import { supabase } from "@/lib/supabase";
 
 type User = Tables<'users'>;
+
+const roleLabels: Record<UserRole, string> = {
+  admin: 'مدير',
+  manager: 'مشرف',
+  employee: 'موظف',
+};
 
 export default function TeamPage() {
   const { toast } = useToast();
@@ -28,11 +34,8 @@ export default function TeamPage() {
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
 
   const getInitials = (name: string) => {
-    const names = name.split(' ');
-    if (names.length > 1) {
-      return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
-    }
-    return name.substring(0, 2).toUpperCase();
+    if (!name) return "";
+    return (name.trim().split(' ')[0]?.[0] || '').toUpperCase();
   }
 
   const fetchUsers = async () => {
@@ -43,7 +46,7 @@ export default function TeamPage() {
       .order('name', { ascending: true });
 
     if (error) {
-      toast({ title: "Error fetching users", description: error.message, variant: 'destructive' });
+      toast({ title: "خطأ في جلب المستخدمين", description: error.message, variant: 'destructive' });
     } else {
       setUsers(data || []);
     }
@@ -79,9 +82,9 @@ export default function TeamPage() {
         .eq('id', editingUser.id);
       
       if (error) {
-        toast({ title: "Error updating user", description: error.message, variant: 'destructive' });
+        toast({ title: "خطأ في تحديث المستخدم", description: error.message, variant: 'destructive' });
       } else {
-        toast({ title: "User Updated", description: `"${values.name}" has been successfully updated.` });
+        toast({ title: "تم تحديث المستخدم", description: `تم تحديث "${values.name}" بنجاح.` });
         await fetchUsers();
       }
     } else {
@@ -99,7 +102,7 @@ export default function TeamPage() {
       });
 
       if (signUpError) {
-         toast({ title: "Error creating user", description: signUpError.message, variant: 'destructive' });
+         toast({ title: "خطأ في إنشاء المستخدم", description: signUpError.message, variant: 'destructive' });
          return;
       }
 
@@ -109,9 +112,9 @@ export default function TeamPage() {
           .insert({ id: data.user.id, name: values.name, email: values.email, role: values.role });
         
         if (profileError) {
-           toast({ title: "Error creating user profile", description: profileError.message, variant: 'destructive' });
+           toast({ title: "خطأ في إنشاء ملف تعريف المستخدم", description: profileError.message, variant: 'destructive' });
         } else {
-            toast({ title: "User Added", description: `An invitation has been sent to "${values.email}".` });
+            toast({ title: "تمت إضافة المستخدم", description: `تم إرسال دعوة إلى "${values.email}".` });
             await fetchUsers();
         }
       }
@@ -130,9 +133,9 @@ export default function TeamPage() {
         .eq('id', deletingUser.id);
 
       if (error) {
-        toast({ title: "Error deleting user", description: error.message, variant: 'destructive' });
+        toast({ title: "خطأ في حذف المستخدم", description: error.message, variant: 'destructive' });
       } else {
-        toast({ title: "User Deleted", description: `"${deletingUser.name}" has been removed.`, variant: 'destructive' });
+        toast({ title: "تم حذف المستخدم", description: `تمت إزالة "${deletingUser.name}".`, variant: 'destructive' });
         await fetchUsers();
       }
       handleCloseDialogs();
@@ -143,29 +146,29 @@ export default function TeamPage() {
     <AppLayout allowedRoles={['admin']}>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Team Management</h1>
+          <h1 className="text-3xl font-bold tracking-tight">إدارة الفريق</h1>
           <p className="text-muted-foreground">
-            Manage your employees and their roles.
+            إدارة موظفيك وأدوارهم.
           </p>
         </div>
         <Button onClick={handleOpenAddDialog}>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Add User
+          <PlusCircle className="ml-2 h-4 w-4" />
+          إضافة مستخدم
         </Button>
       </div>
 
       <Card className="mt-6">
         <CardHeader>
-          <CardTitle>All Users</CardTitle>
-          <CardDescription>A list of all users in your Supabase database.</CardDescription>
+          <CardTitle>كل المستخدمين</CardTitle>
+          <CardDescription>قائمة بجميع المستخدمين في قاعدة بيانات Supabase الخاصة بك.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>User</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead className="w-[50px]">Actions</TableHead>
+                <TableHead>المستخدم</TableHead>
+                <TableHead>الدور</TableHead>
+                <TableHead className="w-[50px]">الإجراءات</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -178,7 +181,7 @@ export default function TeamPage() {
               ) : users.length === 0 ? (
                  <TableRow>
                   <TableCell colSpan={3} className="text-center h-24">
-                    No users found.
+                    لم يتم العثور على مستخدمين.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -197,20 +200,20 @@ export default function TeamPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={user.role === 'admin' ? 'default' : user.role === 'manager' ? 'secondary' : 'outline'}>{user.role}</Badge>
+                      <Badge variant={user.role === 'admin' ? 'default' : user.role === 'manager' ? 'secondary' : 'outline'}>{roleLabels[user.role as UserRole]}</Badge>
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
+                            <span className="sr-only">فتح القائمة</span>
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => handleOpenEditDialog(user)}>Edit Profile</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setDeletingUser(user)} className="text-destructive">Delete User</DropdownMenuItem>
+                          <DropdownMenuLabel>الإجراءات</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => handleOpenEditDialog(user)}>تعديل الملف الشخصي</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setDeletingUser(user)} className="text-destructive">حذف المستخدم</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -226,9 +229,9 @@ export default function TeamPage() {
       <Dialog open={isAddOrEditDialogOpen} onOpenChange={(isOpen) => !isOpen && handleCloseDialogs()}>
         <DialogContent className="sm:max-w-[425px]" onInteractOutside={handleCloseDialogs}>
           <DialogHeader>
-            <DialogTitle>{editingUser ? "Edit User Profile" : "Add New User"}</DialogTitle>
+            <DialogTitle>{editingUser ? "تعديل ملف المستخدم" : "إضافة مستخدم جديد"}</DialogTitle>
             <DialogDescription>
-              {editingUser ? "Update the user's name and role." : "Create a new user profile and send an invitation."}
+              {editingUser ? "تحديث اسم المستخدم ودوره." : "إنشاء ملف تعريف مستخدم جديد وإرسال دعوة."}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
@@ -246,14 +249,14 @@ export default function TeamPage() {
       <AlertDialog open={!!deletingUser} onOpenChange={() => setDeletingUser(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>هل أنت متأكد؟</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the user profile for "{deletingUser?.name}". Deleting the user may fail if they have associated records like orders or attendance logs.
+              لا يمكن التراجع عن هذا الإجراء. سيؤدي هذا إلى حذف ملف تعريف المستخدم "{deletingUser?.name}" نهائيًا. قد يفشل حذف المستخدم إذا كان لديه سجلات مرتبطة مثل الطلبات أو سجلات الحضور.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleCloseDialogs}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteUser} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+            <AlertDialogCancel onClick={handleCloseDialogs}>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteUser} className="bg-destructive hover:bg-destructive/90">حذف</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -1,3 +1,4 @@
+
 "use client";
 import { LoginForm } from "@/components/login-form";
 import { useAuth } from "@/hooks/use-auth";
@@ -26,10 +27,10 @@ export default function LoginPage() {
     <main className="flex min-h-screen flex-col items-center justify-center p-4">
       <div className="absolute top-8 text-center">
         <h1 className="text-4xl font-bold tracking-tight text-primary">
-          Welcome to Alhamshary
+          مرحباً بكم في الهمشري
         </h1>
         <p className="text-muted-foreground">
-          The all-in-one solution for managing your services.
+          الحل المتكامل لإدارة خدماتك.
         </p>
       </div>
       <LoginForm />

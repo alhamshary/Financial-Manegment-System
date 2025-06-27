@@ -61,7 +61,7 @@ export default function ReportsPage() {
       setServices(servicesData.data || []);
 
     } catch (error: any) {
-      toast({ title: "Error fetching data", description: error.message, variant: 'destructive' });
+      toast({ title: "خطأ في جلب البيانات", description: error.message, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -139,56 +139,56 @@ export default function ReportsPage() {
     <AppLayout allowedRoles={['admin', 'manager']}>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Reports</h1>
+          <h1 className="text-3xl font-bold tracking-tight">التقارير</h1>
           <p className="text-muted-foreground">
-            Generate and export detailed revenue reports.
+            إنشاء وتصدير تقارير إيرادات مفصلة.
           </p>
         </div>
         <Button onClick={exportToCsv} disabled={loading || filteredLogs.length === 0}>
-          <Download className="mr-2 h-4 w-4" />
-          Export as CSV
+          <Download className="ml-2 h-4 w-4" />
+          تصدير كـ CSV
         </Button>
       </div>
 
        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mt-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+            <CardTitle className="text-sm font-medium">إجمالي الإيرادات</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${summaryStats.totalRevenue.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">Based on current filters</p>
+            <p className="text-xs text-muted-foreground">بناءً على الفلاتر الحالية</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Services</CardTitle>
+            <CardTitle className="text-sm font-medium">إجمالي الخدمات</CardTitle>
             <Wrench className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">+{summaryStats.totalServices}</div>
-             <p className="text-xs text-muted-foreground">Based on current filters</p>
+             <p className="text-xs text-muted-foreground">بناءً على الفلاتر الحالية</p>
           </CardContent>
         </Card>
          <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Services by Employees</CardTitle>
+            <CardTitle className="text-sm font-medium">خدمات الموظفين</CardTitle>
             <UsersIcon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{summaryStats.servicesByRole['employee'] || 0}</div>
-             <p className="text-xs text-muted-foreground">Completed by employees</p>
+             <p className="text-xs text-muted-foreground">أكملها الموظفون</p>
           </CardContent>
         </Card>
          <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Services by Staff</CardTitle>
+            <CardTitle className="text-sm font-medium">خدمات الإدارة</CardTitle>
             <UsersIcon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{(summaryStats.servicesByRole['admin'] || 0) + (summaryStats.servicesByRole['manager'] || 0)}</div>
-             <p className="text-xs text-muted-foreground">Admins & Managers</p>
+             <p className="text-xs text-muted-foreground">المديرون والمشرفون</p>
           </CardContent>
         </Card>
       </div>
@@ -196,15 +196,15 @@ export default function ReportsPage() {
       <Card className="mt-6">
         <CardHeader>
           <div className="flex flex-wrap items-center gap-4">
-            <h2 className="text-lg font-semibold">Filters</h2>
+            <h2 className="text-lg font-semibold">الفلاتر</h2>
             <Popover>
               <PopoverTrigger asChild>
                 <Button
                   id="date"
                   variant={"outline"}
-                  className={cn("w-[300px] justify-start text-left font-normal", !date && "text-muted-foreground")}
+                  className={cn("w-[300px] justify-start text-start font-normal", !date && "text-muted-foreground")}
                 >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  <CalendarIcon className="ml-2 h-4 w-4" />
                   {date?.from ? (
                     date.to ? (
                       <>
@@ -214,7 +214,7 @@ export default function ReportsPage() {
                       format(date.from, "LLL dd, y")
                     )
                   ) : (
-                    <span>Pick a date range</span>
+                    <span>اختر نطاقًا زمنيًا</span>
                   )}
                 </Button>
               </PopoverTrigger>
@@ -231,10 +231,10 @@ export default function ReportsPage() {
             </Popover>
             <Select value={selectedEmployee} onValueChange={(value) => setSelectedEmployee(value === 'all' ? '' : value)}>
               <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by Employee" />
+                <SelectValue placeholder="تصفية حسب الموظف" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Employees</SelectItem>
+                <SelectItem value="all">كل الموظفين</SelectItem>
                 {users.map(u => (
                   <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
                 ))}
@@ -242,16 +242,16 @@ export default function ReportsPage() {
             </Select>
             <Select value={selectedService} onValueChange={(value) => setSelectedService(value === 'all' ? '' : value)}>
               <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by Service" />
+                <SelectValue placeholder="تصفية حسب الخدمة" />
               </SelectTrigger>
               <SelectContent>
-                 <SelectItem value="all">All Services</SelectItem>
+                 <SelectItem value="all">كل الخدمات</SelectItem>
                 {services.map(s => (
                   <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-             <Button onClick={handleApplyFilters} disabled={loading}>Apply Filters</Button>
+             <Button onClick={handleApplyFilters} disabled={loading}>تطبيق الفلاتر</Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -263,27 +263,27 @@ export default function ReportsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Employee</TableHead>
-                  <TableHead>Service</TableHead>
-                  <TableHead>Client Name</TableHead>
-                  <TableHead>Client Phone</TableHead>
-                  <TableHead className="text-right">Revenue</TableHead>
+                  <TableHead>التاريخ</TableHead>
+                  <TableHead>الموظف</TableHead>
+                  <TableHead>الخدمة</TableHead>
+                  <TableHead>اسم العميل</TableHead>
+                  <TableHead>هاتف العميل</TableHead>
+                  <TableHead className="text-end">الإيرادات</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredLogs.length > 0 ? filteredLogs.map((log) => (
                     <TableRow key={log.id}>
-                      <TableCell>{log.created_at ? format(new Date(log.created_at), 'PPP') : 'N/A'}</TableCell>
-                      <TableCell className="font-medium">{log.users?.name || 'N/A'}</TableCell>
-                      <TableCell>{log.services?.name || 'N/A'}</TableCell>
-                      <TableCell>{log.clients?.name || 'N/A'}</TableCell>
-                      <TableCell>{log.clients?.phone || 'N/A'}</TableCell>
-                      <TableCell className="text-right">${(log.total ?? 0).toFixed(2)}</TableCell>
+                      <TableCell>{log.created_at ? format(new Date(log.created_at), 'PPP') : 'غير متوفر'}</TableCell>
+                      <TableCell className="font-medium">{log.users?.name || 'غير متوفر'}</TableCell>
+                      <TableCell>{log.services?.name || 'غير متوفر'}</TableCell>
+                      <TableCell>{log.clients?.name || 'غير متوفر'}</TableCell>
+                      <TableCell>{log.clients?.phone || 'غير متوفر'}</TableCell>
+                      <TableCell className="text-end">${(log.total ?? 0).toFixed(2)}</TableCell>
                     </TableRow>
                   )) : (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center h-24">No results found for the selected filters.</TableCell>
+                      <TableCell colSpan={6} className="text-center h-24">لم يتم العثور على نتائج للفلاتر المحددة.</TableCell>
                     </TableRow>
                   )
                 }

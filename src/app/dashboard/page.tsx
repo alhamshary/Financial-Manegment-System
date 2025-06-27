@@ -47,7 +47,7 @@ function SessionTimerCard() {
         .single();
 
       if (error && error.code !== 'PGRST116') { // Ignore "No rows found"
-        toast({ title: "Error fetching session", description: error.message, variant: 'destructive' });
+        toast({ title: "خطأ في جلب الجلسة", description: error.message, variant: 'destructive' });
       } else if (data) {
         setSessionStartTime(data.check_in);
       }
@@ -89,7 +89,7 @@ function SessionTimerCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Current Session Duration</CardTitle>
+        <CardTitle>مدة الجلسة الحالية</CardTitle>
       </CardHeader>
       <CardContent>
         {loading ? (
@@ -129,7 +129,7 @@ function EmployeeDashboard() {
       .order('created_at', { ascending: false });
     
     if (servicesError) {
-      toast({ title: "Error fetching services", description: servicesError.message, variant: 'destructive' });
+      toast({ title: "خطأ في جلب الخدمات", description: servicesError.message, variant: 'destructive' });
     } else {
       setServicesToday((servicesData as any) || []);
     }
@@ -146,15 +146,15 @@ function EmployeeDashboard() {
       <SessionTimerCard />
       <Card>
         <CardHeader>
-          <CardTitle>Your Services Today</CardTitle>
+          <CardTitle>خدماتك اليوم</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Service</TableHead>
-                <TableHead>Client</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
+                <TableHead>الخدمة</TableHead>
+                <TableHead>العميل</TableHead>
+                <TableHead className="text-end">المبلغ</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -163,14 +163,14 @@ function EmployeeDashboard() {
               ) : servicesToday.length > 0 ? servicesToday.map(log => {
                 return (
                   <TableRow key={log.id}>
-                    <TableCell>{log.services?.name || 'N/A'}</TableCell>
-                    <TableCell>{log.clients?.name || 'N/A'}</TableCell>
-                    <TableCell className="text-right">${(log.total ?? 0).toFixed(2)}</TableCell>
+                    <TableCell>{log.services?.name || 'غير متوفر'}</TableCell>
+                    <TableCell>{log.clients?.name || 'غير متوفر'}</TableCell>
+                    <TableCell className="text-end">${(log.total ?? 0).toFixed(2)}</TableCell>
                   </TableRow>
                 )
               }) : (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center">No services submitted today.</TableCell>
+                  <TableCell colSpan={3} className="text-center">لم يتم تقديم أي خدمات اليوم.</TableCell>
                 </TableRow>
               )}
             </TableBody>
@@ -251,7 +251,7 @@ function AdminManagerDashboard() {
       });
 
     } catch (error: any) {
-        toast({ title: "Error fetching dashboard data", description: error.message, variant: 'destructive' });
+        toast({ title: "خطأ في جلب بيانات لوحة التحكم", description: error.message, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -268,57 +268,57 @@ function AdminManagerDashboard() {
        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Revenue Today</CardTitle>
+            <CardTitle className="text-sm font-medium">إجمالي الإيرادات اليوم</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : <div className="text-2xl font-bold">${stats.totalRevenue.toFixed(2)}</div>}
-            <p className="text-xs text-muted-foreground">Based on today's logs</p>
+            <p className="text-xs text-muted-foreground">بناءً على سجلات اليوم</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Services Sold Today</CardTitle>
+            <CardTitle className="text-sm font-medium">الخدمات المباعة اليوم</CardTitle>
             <Wrench className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : <div className="text-2xl font-bold">+{stats.servicesSold}</div>}
-             <p className="text-xs text-muted-foreground">Total services performed</p>
+             <p className="text-xs text-muted-foreground">إجمالي الخدمات المقدمة</p>
           </CardContent>
         </Card>
          <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Employees</CardTitle>
+            <CardTitle className="text-sm font-medium">الموظفون النشطون</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : <div className="text-2xl font-bold">{stats.activeEmployees} / {stats.totalEmployees}</div>}
-             <p className="text-xs text-muted-foreground">Employees with attendance today</p>
+             <p className="text-xs text-muted-foreground">الموظفون الحاضرون اليوم</p>
           </CardContent>
         </Card>
          <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg. Work Hours</CardTitle>
+            <CardTitle className="text-sm font-medium">متوسط ساعات العمل</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : <div className="text-2xl font-bold">{stats.avgWorkHours.toFixed(1)}h</div>}
-             <p className="text-xs text-muted-foreground">Average per employee today</p>
+            {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : <div className="text-2xl font-bold">{stats.avgWorkHours.toFixed(1)} س</div>}
+             <p className="text-xs text-muted-foreground">المتوسط لكل موظف اليوم</p>
           </CardContent>
         </Card>
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>All Services Submitted Today</CardTitle>
+          <CardTitle>جميع الخدمات المقدمة اليوم</CardTitle>
         </CardHeader>
         <CardContent>
         <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Employee</TableHead>
-                <TableHead>Service</TableHead>
-                <TableHead>Client</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
+                <TableHead>الموظف</TableHead>
+                <TableHead>الخدمة</TableHead>
+                <TableHead>العميل</TableHead>
+                <TableHead className="text-end">المبلغ</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -327,15 +327,15 @@ function AdminManagerDashboard() {
               ) : logs.length > 0 ? logs.map(log => {
                 return (
                   <TableRow key={log.id}>
-                    <TableCell>{log.users?.name || 'N/A'}</TableCell>
-                    <TableCell><Badge variant="outline">{log.services?.name || 'N/A'}</Badge></TableCell>
-                    <TableCell>{log.clients?.name || 'N/A'}</TableCell>
-                    <TableCell className="text-right">${(log.total ?? 0).toFixed(2)}</TableCell>
+                    <TableCell>{log.users?.name || 'غير متوفر'}</TableCell>
+                    <TableCell><Badge variant="outline">{log.services?.name || 'غير متوفر'}</Badge></TableCell>
+                    <TableCell>{log.clients?.name || 'غير متوفر'}</TableCell>
+                    <TableCell className="text-end">${(log.total ?? 0).toFixed(2)}</TableCell>
                   </TableRow>
                 )
               }) : (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center">No services submitted today.</TableCell>
+                  <TableCell colSpan={4} className="text-center">لم يتم تقديم أي خدمات اليوم.</TableCell>
                 </TableRow>
               )}
             </TableBody>
@@ -353,9 +353,9 @@ export default function DashboardPage() {
     <AppLayout>
       <div className="flex flex-col gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <h1 className="text-3xl font-bold tracking-tight">لوحة التحكم</h1>
           <p className="text-muted-foreground">
-            Welcome back, {user?.name}. Here's your overview.
+            مرحباً بعودتك، {user?.name}. إليك نظرة عامة.
           </p>
         </div>
 

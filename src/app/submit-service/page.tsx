@@ -23,10 +23,10 @@ import { Textarea } from "@/components/ui/textarea";
 type Service = Tables<'services'>;
 
 const formSchema = z.object({
-  serviceId: z.string().min(1, { message: "Please select a service." }),
-  clientName: z.string().min(2, { message: "Client name is required." }),
-  clientPhone: z.string().min(10, { message: "Valid phone number is required." }),
-  quantity: z.coerce.number().min(1, { message: "Quantity must be at least 1." }),
+  serviceId: z.string().min(1, { message: "الرجاء تحديد خدمة." }),
+  clientName: z.string().min(2, { message: "اسم العميل مطلوب." }),
+  clientPhone: z.string().min(10, { message: "رقم هاتف صحيح مطلوب." }),
+  quantity: z.coerce.number().min(1, { message: "الكمية يجب أن تكون 1 على الأقل." }),
   discount: z.coerce.number().min(0).optional().default(0),
   notes: z.string().optional(),
 });
@@ -61,7 +61,7 @@ export default function SubmitServicePage() {
       setLoadingServices(true);
       const { data, error } = await supabase.from('services').select('*').order('name');
       if (error) {
-        toast({ title: "Error fetching services", description: error.message, variant: 'destructive' });
+        toast({ title: "خطأ في جلب الخدمات", description: error.message, variant: 'destructive' });
       } else {
         setServices(data || []);
       }
@@ -96,7 +96,7 @@ export default function SubmitServicePage() {
 
   async function onSubmit(values: FormValues) {
     if (!selectedService || !user) {
-        toast({ title: "Submission Error", description: "Please select a service and ensure you are logged in.", variant: 'destructive' });
+        toast({ title: "خطأ في الإرسال", description: "يرجى تحديد خدمة والتأكد من تسجيل الدخول.", variant: 'destructive' });
         return;
     }
     
@@ -111,7 +111,7 @@ export default function SubmitServicePage() {
             .single();
 
         if (clientError || !clientData) {
-            throw clientError || new Error("Failed to create or find client.");
+            throw clientError || new Error("فشل في إنشاء أو العثور على العميل.");
         }
 
         // Step 2: Create order
@@ -133,8 +133,8 @@ export default function SubmitServicePage() {
         }
 
         toast({
-            title: "Service Submitted!",
-            description: `${selectedService.name} for ${values.clientName} has been logged successfully.`,
+            title: "تم إرسال الخدمة!",
+            description: `تم تسجيل ${selectedService.name} لـ ${values.clientName} بنجاح.`,
         });
         form.reset();
         setSelectedService(null);
@@ -142,7 +142,7 @@ export default function SubmitServicePage() {
 
     } catch (error: any) {
         toast({
-            title: "Submission Failed",
+            title: "فشل الإرسال",
             description: error.message,
             variant: 'destructive',
         });
@@ -154,16 +154,16 @@ export default function SubmitServicePage() {
   return (
     <AppLayout allowedRoles={['admin', 'manager', 'employee']}>
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Submit a Service</h1>
+        <h1 className="text-3xl font-bold tracking-tight">إرسال خدمة</h1>
         <p className="text-muted-foreground">
-          Log a service that you have completed for a client.
+          سجل خدمة قمت بإكمالها لعميل.
         </p>
       </div>
 
       <Card className="mt-6">
         <CardHeader>
-          <CardTitle>Service Details</CardTitle>
-          <CardDescription>Fill out the form below.</CardDescription>
+          <CardTitle>تفاصيل الخدمة</CardTitle>
+          <CardDescription>املأ النموذج أدناه.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -174,7 +174,7 @@ export default function SubmitServicePage() {
                   name="serviceId"
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
-                      <FormLabel>Service</FormLabel>
+                      <FormLabel>الخدمة</FormLabel>
                       <Popover>
                         <PopoverTrigger asChild>
                           <FormControl>
@@ -187,20 +187,20 @@ export default function SubmitServicePage() {
                               )}
                               disabled={loadingServices}
                             >
-                              {selectedService?.name ?? "Select service"}
+                              {selectedService?.name ?? "اختر خدمة"}
                               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                             </Button>
                           </FormControl>
                         </PopoverTrigger>
                         <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                           <Command>
-                            <CommandInput placeholder="Search service..." />
+                            <CommandInput placeholder="ابحث عن خدمة..." />
                             <CommandList>
                             {loadingServices ? (
-                                <div className="p-4 text-center text-sm">Loading...</div>
+                                <div className="p-4 text-center text-sm">جار التحميل...</div>
                              ) : (
                                 <>
-                                <CommandEmpty>No service found.</CommandEmpty>
+                                <CommandEmpty>لم يتم العثور على خدمة.</CommandEmpty>
                                 <CommandGroup>
                                 {services.map((service) => (
                                     <CommandItem
@@ -213,7 +213,7 @@ export default function SubmitServicePage() {
                                     >
                                     <Check
                                         className={cn(
-                                        "mr-2 h-4 w-4",
+                                        "ml-2 h-4 w-4",
                                         service.id.toString() === field.value
                                             ? "opacity-100"
                                             : "opacity-0"
@@ -236,17 +236,17 @@ export default function SubmitServicePage() {
                 
                 {selectedService && (
                    <div className="flex flex-col space-y-1.5">
-                     <FormLabel>Service Details</FormLabel>
+                     <FormLabel>تفاصيل الخدمة</FormLabel>
                       <div className="flex items-center justify-between p-2 border rounded-md h-10">
                         <p className="text-sm text-muted-foreground">
-                            Base Price: ${selectedService.price.toFixed(2)}
+                            السعر الأساسي: ${selectedService.price.toFixed(2)}
                             {selectedService.category && <span className="mx-2">|</span>}
-                            {selectedService.category && `Category: ${selectedService.category}`}
+                            {selectedService.category && `الفئة: ${selectedService.category}`}
                         </p>
                         {selectedService.link && (
                             <a href={selectedService.link} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1 text-sm">
                                 <LinkIcon className="h-4 w-4" />
-                                <span>View Link</span>
+                                <span>عرض الرابط</span>
                             </a>
                         )}
                      </div>
@@ -258,9 +258,9 @@ export default function SubmitServicePage() {
                   name="clientName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Client Name</FormLabel>
+                      <FormLabel>اسم العميل</FormLabel>
                       <FormControl>
-                        <Input placeholder="John Doe" {...field} />
+                        <Input placeholder="فلان الفلاني" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -272,7 +272,7 @@ export default function SubmitServicePage() {
                   name="clientPhone"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Client Phone</FormLabel>
+                      <FormLabel>هاتف العميل</FormLabel>
                       <FormControl>
                         <Input placeholder="123-456-7890" {...field} />
                       </FormControl>
@@ -286,7 +286,7 @@ export default function SubmitServicePage() {
                   name="quantity"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Quantity</FormLabel>
+                      <FormLabel>الكمية</FormLabel>
                       <FormControl>
                         <Input type="number" {...field} />
                       </FormControl>
@@ -300,7 +300,7 @@ export default function SubmitServicePage() {
                   name="discount"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Discount ($)</FormLabel>
+                      <FormLabel>الخصم ($)</FormLabel>
                       <FormControl>
                         <Input type="number" {...field} />
                       </FormControl>
@@ -315,10 +315,10 @@ export default function SubmitServicePage() {
                     name="notes"
                     render={({ field }) => (
                         <FormItem>
-                        <FormLabel>Notes (Optional)</FormLabel>
+                        <FormLabel>ملاحظات (اختياري)</FormLabel>
                         <FormControl>
                             <Textarea
-                            placeholder="Add any notes about the service or client here..."
+                            placeholder="أضف أي ملاحظات حول الخدمة أو العميل هنا..."
                             className="resize-none"
                             {...field}
                             />
@@ -332,11 +332,11 @@ export default function SubmitServicePage() {
 
               <div className="flex items-center justify-between pt-4 border-t">
                   <h3 className="text-lg font-semibold">
-                    Final Price: <span className="text-primary">${finalPrice.toFixed(2)}</span>
+                    السعر النهائي: <span className="text-primary">${finalPrice.toFixed(2)}</span>
                   </h3>
                   <Button type="submit" disabled={submitting}>
-                    {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Submit Service
+                    {submitting && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+                    إرسال الخدمة
                   </Button>
               </div>
             </form>

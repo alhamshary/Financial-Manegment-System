@@ -60,7 +60,7 @@ export default function AttendancePage() {
       setUsers(usersData.data || []);
 
     } catch (error: any) {
-      toast({ title: "Error fetching data", description: error.message, variant: 'destructive' });
+      toast({ title: "خطأ في جلب البيانات", description: error.message, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -80,7 +80,7 @@ export default function AttendancePage() {
       if (!dailyTotals[key]) {
         dailyTotals[key] = {
           userId: log.user_id,
-          userName: log.users?.name || 'Unknown User',
+          userName: log.users?.name || 'مستخدم غير معروف',
           workDate: log.work_date,
           totalDuration: 0,
         };
@@ -139,36 +139,36 @@ export default function AttendancePage() {
   const formatDuration = (minutes: number) => {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
-    return `${hours}h ${mins}m`;
+    return `${hours} س ${mins} د`;
   }
 
   return (
     <AppLayout allowedRoles={['admin', 'manager']}>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Attendance Report</h1>
+          <h1 className="text-3xl font-bold tracking-tight">تقرير الحضور</h1>
           <p className="text-muted-foreground">
-            View and export employee attendance records.
+            عرض وتصدير سجلات حضور الموظفين.
           </p>
         </div>
         <Button onClick={exportToCsv} disabled={loading || filteredData.length === 0}>
-          <Download className="mr-2 h-4 w-4" />
-          Export as CSV
+          <Download className="ml-2 h-4 w-4" />
+          تصدير كـ CSV
         </Button>
       </div>
 
       <Card className="mt-6">
         <CardHeader>
           <div className="flex flex-wrap items-center gap-4">
-            <h2 className="text-lg font-semibold">Filters</h2>
+            <h2 className="text-lg font-semibold">الفلاتر</h2>
             <Popover>
               <PopoverTrigger asChild>
                 <Button
                   id="date"
                   variant={"outline"}
-                  className={cn("w-[300px] justify-start text-left font-normal", !date && "text-muted-foreground")}
+                  className={cn("w-[300px] justify-start text-start font-normal", !date && "text-muted-foreground")}
                 >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  <CalendarIcon className="ml-2 h-4 w-4" />
                   {date?.from ? (
                     date.to ? (
                       <>
@@ -178,7 +178,7 @@ export default function AttendancePage() {
                       format(date.from, "LLL dd, y")
                     )
                   ) : (
-                    <span>Pick a date range</span>
+                    <span>اختر نطاقًا زمنيًا</span>
                   )}
                 </Button>
               </PopoverTrigger>
@@ -195,16 +195,16 @@ export default function AttendancePage() {
             </Popover>
             <Select value={selectedUser} onValueChange={(value) => setSelectedUser(value === 'all' ? '' : value)}>
               <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Filter by Employee" />
+                <SelectValue placeholder="تصفية حسب الموظف" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Employees</SelectItem>
+                <SelectItem value="all">كل الموظفين</SelectItem>
                 {users.map(u => (
                   <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-             <Button onClick={handleApplyFilters} disabled={loading}>Apply Filters</Button>
+             <Button onClick={handleApplyFilters} disabled={loading}>تطبيق الفلاتر</Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -216,9 +216,9 @@ export default function AttendancePage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Employee Name</TableHead>
-                  <TableHead>Work Date</TableHead>
-                  <TableHead className="text-right">Total Hours Worked</TableHead>
+                  <TableHead>اسم الموظف</TableHead>
+                  <TableHead>تاريخ العمل</TableHead>
+                  <TableHead className="text-end">إجمالي ساعات العمل</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -226,11 +226,11 @@ export default function AttendancePage() {
                     <TableRow key={`${log.userId}-${log.workDate}`}>
                       <TableCell className="font-medium">{log.userName}</TableCell>
                       <TableCell>{format(new Date(log.workDate), 'PPP')}</TableCell>
-                      <TableCell className="text-right">{formatDuration(log.totalDuration)} ({ (log.totalDuration / 60).toFixed(2) }h)</TableCell>
+                      <TableCell className="text-end">{formatDuration(log.totalDuration)} ({ (log.totalDuration / 60).toFixed(2) } س)</TableCell>
                     </TableRow>
                   )) : (
                     <TableRow>
-                      <TableCell colSpan={3} className="text-center h-24">No results found for the selected filters.</TableCell>
+                      <TableCell colSpan={3} className="text-center h-24">لم يتم العثور على نتائج للفلاتر المحددة.</TableCell>
                     </TableRow>
                   )
                 }

@@ -18,15 +18,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { Tables } from "@/lib/database.types";
 
 type User = Tables<'users'>;
-type UserRole = User['role'];
+export type UserRole = User['role'];
 
 const roles: UserRole[] = ['admin', 'manager', 'employee'];
 
+const roleLabels: Record<UserRole, string> = {
+  admin: 'مدير',
+  manager: 'مشرف',
+  employee: 'موظف',
+};
+
+
 // Base schema for editing
 const baseSchema = z.object({
-  name: z.string().min(2, { message: "Name must be at least 2 characters." }),
-  email: z.string().email({ message: "Please enter a valid email." }),
-  role: z.enum(roles, { required_error: "Please select a role." }),
+  name: z.string().min(2, { message: "الاسم يجب أن لا يقل عن حرفين." }),
+  email: z.string().email({ message: "الرجاء إدخال بريد إلكتروني صحيح." }),
+  role: z.enum(roles, { required_error: "الرجاء تحديد دور." }),
 });
 
 // Conditional schema for adding a new user (password is required)
@@ -37,7 +44,7 @@ const formSchema = z.discriminatedUnion("isEditing", [
   }),
   baseSchema.extend({
     isEditing: z.literal(false),
-    password: z.string().min(6, { message: "Password must be at least 6 characters." }),
+    password: z.string().min(6, { message: "كلمة المرور يجب أن لا تقل عن 6 أحرف." }),
   }),
 ]);
 
@@ -68,9 +75,9 @@ export function UserForm({ onSubmit, onCancel, initialData }: UserFormProps) {
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Full Name</FormLabel>
+              <FormLabel>الاسم الكامل</FormLabel>
               <FormControl>
-                <Input placeholder="John Doe" {...field} />
+                <Input placeholder="فلان الفلاني" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -81,7 +88,7 @@ export function UserForm({ onSubmit, onCancel, initialData }: UserFormProps) {
           name="email"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Email</FormLabel>
+              <FormLabel>البريد الإلكتروني</FormLabel>
               <FormControl>
                 <Input type="email" placeholder="name@example.com" {...field} disabled={isEditing} />
               </FormControl>
@@ -95,7 +102,7 @@ export function UserForm({ onSubmit, onCancel, initialData }: UserFormProps) {
             name="password"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Password</FormLabel>
+                <FormLabel>كلمة المرور</FormLabel>
                 <FormControl>
                   <Input type="password" placeholder="••••••••" {...field} />
                 </FormControl>
@@ -109,17 +116,17 @@ export function UserForm({ onSubmit, onCancel, initialData }: UserFormProps) {
           name="role"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Role</FormLabel>
+              <FormLabel>الدور</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a role" />
+                    <SelectValue placeholder="اختر دورًا" />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
                   {roles.map((role) => (
-                    <SelectItem key={role} value={role} className="capitalize">
-                      {role}
+                    <SelectItem key={role} value={role} className="capitalize text-end">
+                      {roleLabels[role]}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -130,11 +137,10 @@ export function UserForm({ onSubmit, onCancel, initialData }: UserFormProps) {
         />
 
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
-          <Button type="submit">{isEditing ? "Save Changes" : "Create User"}</Button>
+          <Button type="button" variant="ghost" onClick={onCancel}>إلغاء</Button>
+          <Button type="submit">{isEditing ? "حفظ التغييرات" : "إنشاء مستخدم"}</Button>
         </div>
       </form>
     </Form>
   );
 }
-
