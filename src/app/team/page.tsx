@@ -51,6 +51,7 @@ export default function TeamPage() {
 
   useEffect(() => {
     fetchUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleOpenAddDialog = () => {
@@ -148,7 +149,7 @@ export default function TeamPage() {
           </p>
         </div>
         <Button onClick={handleOpenAddDialog}>
-          <PlusCircle className="h-4 w-4" />
+          <PlusCircle />
           إضافة مستخدم
         </Button>
       </div>
@@ -203,7 +204,7 @@ export default function TeamPage() {
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" className="h-8 w-8 p-0">
                             <span className="sr-only">فتح القائمة</span>
-                            <MoreHorizontal className="h-4 w-4" />
+                            <MoreHorizontal />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">

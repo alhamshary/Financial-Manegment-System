@@ -125,7 +125,7 @@ export function UserForm({ onSubmit, onCancel, initialData }: UserFormProps) {
                 </FormControl>
                 <SelectContent>
                   {roles.map((role) => (
-                    <SelectItem key={role} value={role} className="capitalize text-end">
+                    <SelectItem key={role} value={role} className="text-end">
                       {roleLabels[role]}
                     </SelectItem>
                   ))}
