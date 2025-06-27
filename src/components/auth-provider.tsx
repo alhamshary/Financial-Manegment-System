@@ -30,21 +30,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       const currentUser = session?.user;
       if (currentUser) {
+        // Fetch profile from public 'users' table
+        const { data: profile } = await supabase
+          .from('users')
+          .select('name, role')
+          .eq('id', currentUser.id)
+          .single();
+
         setUser({
           id: currentUser.id,
           email: currentUser.email!,
-          // Supabase stores custom data in user_metadata
-          name: currentUser.user_metadata.name || 'User',
-          role: currentUser.user_metadata.role || 'employee',
+          // Fallback to email if name/role not in profile yet
+          name: profile?.name || currentUser.email!,
+          role: (profile?.role as UserRole) || 'employee',
         });
+
       } else {
         setUser(null);
       }
       setLoading(false);
     });
+    
+    // Set loading to false if there is no session on initial load
+    const getInitialSession = async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+            setLoading(false);
+        }
+    };
+    getInitialSession();
+
 
     return () => {
       subscription.unsubscribe();
