@@ -1,5 +1,7 @@
+
 "use client";
 
+import { useEffect, useState } from "react";
 import { AppLayout } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,17 +9,36 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
+import { applyTheme } from "@/components/theme-provider";
 
 export default function SettingsPage() {
   const { toast } = useToast();
+  const [officeTitle, setOfficeTitle] = useState("Main Office");
+  const [theme, setTheme] = useState("theme-default");
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    const savedTitle = localStorage.getItem("officeTitle") || "Main Office";
+    const savedTheme = localStorage.getItem("appTheme") || "theme-default";
+    setOfficeTitle(savedTitle);
+    setTheme(savedTheme);
+    setIsMounted(true);
+  }, []);
 
   const handleSave = () => {
+    localStorage.setItem("officeTitle", officeTitle);
+    localStorage.setItem("appTheme", theme);
+    applyTheme(theme);
     toast({
       title: "Settings Saved",
       description: "Your changes have been successfully saved.",
     });
   };
+
+  if (!isMounted) {
+    // Avoids hydration mismatch by not rendering on server
+    return null;
+  }
 
   return (
     <AppLayout allowedRoles={['admin']}>
@@ -36,14 +57,22 @@ export default function SettingsPage() {
         <CardContent className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="office-title">Office Title</Label>
-            <Input id="office-title" defaultValue="Main Office" />
+            <Input
+              id="office-title"
+              value={officeTitle}
+              onChange={(e) => setOfficeTitle(e.target.value)}
+            />
             <p className="text-sm text-muted-foreground">
               This will be displayed in the header.
             </p>
           </div>
           <div className="space-y-2">
             <Label>Color Theme</Label>
-            <RadioGroup defaultValue="theme-default" className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <RadioGroup
+              value={theme}
+              onValueChange={setTheme}
+              className="grid grid-cols-2 md:grid-cols-4 gap-4"
+            >
               <div>
                 <RadioGroupItem value="theme-default" id="theme-default" className="peer sr-only" />
                 <Label
