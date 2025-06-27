@@ -11,6 +11,7 @@ import {
   Users,
   Cog,
   Icon,
+  CalendarCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/components/auth-provider";
@@ -27,6 +28,7 @@ const navItems: NavItem[] = [
   { href: "/submit-service", label: "Submit Service", icon: FilePlus2, roles: ["admin", "manager", "employee"] },
   { href: "/services", label: "Services", icon: Wrench, roles: ["admin", "manager"] },
   { href: "/reports", label: "Reports", icon: FileText, roles: ["admin", "manager"] },
+  { href: "/attendance", label: "Attendance", icon: CalendarCheck, roles: ["admin", "manager"] },
   { href: "/team", label: "Team", icon: Users, roles: ["admin"] },
   { href: "/settings", label: "Settings", icon: Cog, roles: ["admin"] },
 ];
