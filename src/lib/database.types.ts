@@ -165,6 +165,7 @@ export type Database = {
           id: number
           name: string
           price: number
+          link: string | null
         }
         Insert: {
           category?: string | null
@@ -172,6 +173,7 @@ export type Database = {
           id?: never
           name: string
           price: number
+          link?: string | null
         }
         Update: {
           category?: string | null
@@ -179,6 +181,7 @@ export type Database = {
           id?: never
           name?: string
           price?: number
+          link?: string | null
         }
         Relationships: []
       }
@@ -271,7 +274,7 @@ export type Database = {
   }
 }
 
-type DefaultSchema = Database[Extract<keyof Database, "public">]
+type DefaultSchema = Database[Extract<keyof Database, "public">>]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends

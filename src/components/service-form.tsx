@@ -13,12 +13,15 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import type { Service } from "@/lib/data";
+import type { Tables } from "@/lib/database.types";
+
+type Service = Tables<'services'>;
 
 const formSchema = z.object({
   name: z.string().min(2, { message: "Service name must be at least 2 characters." }),
   category: z.string().min(2, { message: "Category is required." }),
   price: z.coerce.number().min(0, { message: "Price must be a positive number." }),
+  link: z.string().url({ message: "Please enter a valid URL." }).optional().or(z.literal('')),
 });
 
 type ServiceFormValues = z.infer<typeof formSchema>;
@@ -32,10 +35,11 @@ interface ServiceFormProps {
 export function ServiceForm({ onSubmit, onCancel, initialData }: ServiceFormProps) {
   const form = useForm<ServiceFormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: initialData || {
-      name: "",
-      category: "",
-      price: 0,
+    defaultValues: {
+      name: initialData?.name ?? "",
+      category: initialData?.category ?? "",
+      price: initialData?.price ?? 0,
+      link: initialData?.link ?? "",
     },
   });
 
@@ -76,6 +80,19 @@ export function ServiceForm({ onSubmit, onCancel, initialData }: ServiceFormProp
               <FormLabel>Price ($)</FormLabel>
               <FormControl>
                 <Input type="number" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="link"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Website Link (Optional)</FormLabel>
+              <FormControl>
+                <Input placeholder="https://example.com" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

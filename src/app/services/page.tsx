@@ -1,13 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AppLayout } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { services as initialServices, type Service } from "@/lib/data";
 import { Badge } from "@/components/ui/badge";
-import { MoreHorizontal, PlusCircle } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Link as LinkIcon, Loader2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   Dialog,
@@ -28,15 +27,39 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ServiceForm } from "@/components/service-form";
 import { useToast } from "@/hooks/use-toast";
+import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
+import { supabase } from "@/lib/supabase";
 
-type ServiceFormValues = Omit<Service, 'id'>;
+type Service = Tables<'services'>;
+type ServiceFormValues = Omit<TablesInsert<'services'>, 'created_at' | 'id'>;
+
 
 export default function ServicesPage() {
   const { toast } = useToast();
-  const [services, setServices] = useState<Service[]>(initialServices);
+  const [services, setServices] = useState<Service[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isAddOrEditDialogOpen, setIsAddOrEditDialogOpen] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [deletingService, setDeletingService] = useState<Service | null>(null);
+
+  const fetchServices = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('services')
+      .select('*')
+      .order('name', { ascending: true });
+
+    if (error) {
+      toast({ title: "Error fetching services", description: error.message, variant: 'destructive' });
+    } else {
+      setServices(data || []);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchServices();
+  }, []);
 
   const handleOpenAddDialog = () => {
     setEditingService(null);
@@ -54,30 +77,54 @@ export default function ServicesPage() {
     setDeletingService(null);
   };
   
-  const handleFormSubmit = (values: ServiceFormValues) => {
+  const handleFormSubmit = async (values: ServiceFormValues) => {
+    const serviceData: TablesUpdate<'services'> = {
+      ...values,
+      link: values.link || null,
+    }
+
     if (editingService) {
       // Edit logic
-      const updatedServices = services.map((s) =>
-        s.id === editingService.id ? { ...s, ...values } : s
-      );
-      setServices(updatedServices);
-      toast({ title: "Service Updated", description: `"${values.name}" has been successfully updated.` });
+      const { error } = await supabase
+        .from('services')
+        .update(serviceData)
+        .eq('id', editingService.id);
+      
+      if (error) {
+        toast({ title: "Error updating service", description: error.message, variant: 'destructive' });
+      } else {
+        toast({ title: "Service Updated", description: `"${values.name}" has been successfully updated.` });
+        await fetchServices();
+      }
     } else {
       // Add logic
-      const newService: Service = {
-        id: `s${services.length + 1}-${Date.now()}`, // simple unique id
-        ...values,
-      };
-      setServices([...services, newService]);
-      toast({ title: "Service Added", description: `"${values.name}" has been successfully added.` });
+      const { error } = await supabase
+        .from('services')
+        .insert(values as TablesInsert<'services'>);
+      
+      if (error) {
+        toast({ title: "Error adding service", description: error.message, variant: 'destructive' });
+      } else {
+        toast({ title: "Service Added", description: `"${values.name}" has been successfully added.` });
+        await fetchServices();
+      }
     }
     handleCloseDialogs();
   };
 
-  const handleDeleteService = () => {
+  const handleDeleteService = async () => {
     if (deletingService) {
-      setServices(services.filter((s) => s.id !== deletingService.id));
-      toast({ title: "Service Deleted", description: `"${deletingService.name}" has been successfully deleted.`, variant: 'destructive' });
+      const { error } = await supabase
+        .from('services')
+        .delete()
+        .eq('id', deletingService.id);
+
+      if (error) {
+        toast({ title: "Error deleting service", description: error.message, variant: 'destructive' });
+      } else {
+        toast({ title: "Service Deleted", description: `"${deletingService.name}" has been successfully deleted.`, variant: 'destructive' });
+        await fetchServices();
+      }
       handleCloseDialogs();
     }
   };
@@ -100,7 +147,7 @@ export default function ServicesPage() {
       <Card className="mt-6">
         <CardHeader>
           <CardTitle>All Services</CardTitle>
-          <CardDescription>A list of all available services.</CardDescription>
+          <CardDescription>A list of all available services from the database.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -108,42 +155,64 @@ export default function ServicesPage() {
               <TableRow>
                 <TableHead>Service Name</TableHead>
                 <TableHead>Category</TableHead>
+                <TableHead>Link</TableHead>
                 <TableHead className="text-right">Price</TableHead>
                 <TableHead className="w-[50px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {services.map((service) => (
-                <TableRow key={service.id}>
-                  <TableCell className="font-medium">{service.name}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{service.category}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right">${service.price.toFixed(2)}</TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <span className="sr-only">Open menu</span>
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => handleOpenEditDialog(service)}>Edit</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setDeletingService(service)} className="text-destructive">Delete</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center h-24">
+                    <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : services.length === 0 ? (
+                 <TableRow>
+                  <TableCell colSpan={5} className="text-center h-24">
+                    No services found.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                services.map((service) => (
+                  <TableRow key={service.id}>
+                    <TableCell className="font-medium">{service.name}</TableCell>
+                    <TableCell>
+                      {service.category && <Badge variant="outline">{service.category}</Badge>}
+                    </TableCell>
+                    <TableCell>
+                      {service.link && (
+                        <a href={service.link} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                          <LinkIcon className="h-4 w-4" />
+                        </a>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">${service.price.toFixed(2)}</TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">Open menu</span>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => handleOpenEditDialog(service)}>Edit</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setDeletingService(service)} className="text-destructive">Delete</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
       {/* Add/Edit Dialog */}
-      <Dialog open={isAddOrEditDialogOpen} onOpenChange={setIsAddOrEditDialogOpen}>
+      <Dialog open={isAddOrEditDialogOpen} onOpenChange={(isOpen) => !isOpen && handleCloseDialogs()}>
         <DialogContent className="sm:max-w-[425px]" onInteractOutside={handleCloseDialogs}>
           <DialogHeader>
             <DialogTitle>{editingService ? "Edit Service" : "Add New Service"}</DialogTitle>
