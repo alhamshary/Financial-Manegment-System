@@ -229,23 +229,23 @@ export default function ReportsPage() {
                 />
               </PopoverContent>
             </Popover>
-            <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
+            <Select value={selectedEmployee} onValueChange={(value) => setSelectedEmployee(value === 'all' ? '' : value)}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Filter by Employee" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Employees</SelectItem>
+                <SelectItem value="all">All Employees</SelectItem>
                 {users.map(u => (
                   <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <Select value={selectedService} onValueChange={setSelectedService}>
+            <Select value={selectedService} onValueChange={(value) => setSelectedService(value === 'all' ? '' : value)}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Filter by Service" />
               </SelectTrigger>
               <SelectContent>
-                 <SelectItem value="">All Services</SelectItem>
+                 <SelectItem value="all">All Services</SelectItem>
                 {services.map(s => (
                   <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>
                 ))}
