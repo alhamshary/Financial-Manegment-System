@@ -77,9 +77,9 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
       </Sidebar>
       <SidebarInset>
         <header className="flex h-14 items-center justify-between border-b bg-background/80 backdrop-blur-sm px-4 lg:px-6">
-          <UserNav />
-          <h2 className="text-xl font-semibold">{officeTitle}</h2>
           <SidebarTrigger />
+          <h2 className="text-xl font-semibold">{officeTitle}</h2>
+          <UserNav />
         </header>
         <main className="flex-1 p-4 sm:p-6">{children}</main>
       </SidebarInset>
