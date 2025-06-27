@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -23,7 +24,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["admin", "manager", "employee"] },
-  { href: "/submit-service", label: "Submit Service", icon: FilePlus2, roles: ["employee"] },
+  { href: "/submit-service", label: "Submit Service", icon: FilePlus2, roles: ["admin", "manager", "employee"] },
   { href: "/services", label: "Services", icon: Wrench, roles: ["admin", "manager"] },
   { href: "/reports", label: "Reports", icon: FileText, roles: ["admin", "manager"] },
   { href: "/team", label: "Team", icon: Users, roles: ["admin"] },

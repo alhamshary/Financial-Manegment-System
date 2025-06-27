@@ -1,3 +1,4 @@
+
 "use client";
 
 import { AppLayout } from "@/components/app-layout";
@@ -10,26 +11,38 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { services, type Service } from "@/lib/data";
-import { useState } from "react";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
+import type { Tables } from "@/lib/database.types";
+import { useAuth } from "@/hooks/use-auth";
+
+type Service = Tables<'services'>;
 
 const formSchema = z.object({
   serviceId: z.string().min(1, { message: "Please select a service." }),
   clientName: z.string().min(2, { message: "Client name is required." }),
   clientPhone: z.string().min(10, { message: "Valid phone number is required." }),
   quantity: z.coerce.number().min(1, { message: "Quantity must be at least 1." }),
-  discount: z.coerce.number().min(0).optional(),
+  discount: z.coerce.number().min(0).optional().default(0),
 });
+
+type FormValues = z.infer<typeof formSchema>;
 
 export default function SubmitServicePage() {
   const { toast } = useToast();
+  const { user } = useAuth();
+
+  const [services, setServices] = useState<Service[]>([]);
+  const [loadingServices, setLoadingServices] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [finalPrice, setFinalPrice] = useState(0);
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       serviceId: "",
@@ -39,11 +52,28 @@ export default function SubmitServicePage() {
       discount: 0,
     },
   });
+  
+  useEffect(() => {
+    const fetchServices = async () => {
+      setLoadingServices(true);
+      const { data, error } = await supabase.from('services').select('*').order('name');
+      if (error) {
+        toast({ title: "Error fetching services", description: error.message, variant: 'destructive' });
+      } else {
+        setServices(data || []);
+      }
+      setLoadingServices(false);
+    };
+    fetchServices();
+  }, [toast]);
 
-  const handleServiceSelect = (service: Service) => {
-    setSelectedService(service);
-    form.setValue("serviceId", service.id);
-    calculatePrice(service.price, form.getValues('quantity'), form.getValues('discount'));
+  const handleServiceSelect = (serviceId: string) => {
+    const service = services.find(s => s.id.toString() === serviceId);
+    if (service) {
+        setSelectedService(service);
+        form.setValue("serviceId", serviceId);
+        calculatePrice(service.price, form.getValues('quantity'), form.getValues('discount'));
+    }
   };
 
   const calculatePrice = (price: number, quantity: number, discount?: number) => {
@@ -54,25 +84,71 @@ export default function SubmitServicePage() {
 
   const watchFields = form.watch(["quantity", "discount"]);
   
-  useState(() => {
+  useEffect(() => {
     if (selectedService) {
       calculatePrice(selectedService.price, watchFields[0], watchFields[1]);
     }
-  });
+  }, [selectedService, watchFields]);
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log({ ...values, finalPrice });
-    toast({
-      title: "Service Submitted!",
-      description: `${selectedService?.name} for ${values.clientName} has been logged.`,
-    });
-    form.reset();
-    setSelectedService(null);
-    setFinalPrice(0);
+
+  async function onSubmit(values: FormValues) {
+    if (!selectedService || !user) {
+        toast({ title: "Submission Error", description: "Please select a service and ensure you are logged in.", variant: 'destructive' });
+        return;
+    }
+    
+    setSubmitting(true);
+
+    try {
+        // Step 1: Upsert client
+        const { data: clientData, error: clientError } = await supabase
+            .from('clients')
+            .upsert({ name: values.clientName, phone: values.clientPhone }, { onConflict: 'phone', ignoreDuplicates: false })
+            .select()
+            .single();
+
+        if (clientError || !clientData) {
+            throw clientError || new Error("Failed to create or find client.");
+        }
+
+        // Step 2: Create order
+        const orderData = {
+            user_id: user.id,
+            service_id: selectedService.id,
+            client_id: clientData.id,
+            price: selectedService.price,
+            quantity: values.quantity,
+            discount: values.discount,
+            total: finalPrice,
+        };
+
+        const { error: orderError } = await supabase.from('orders').insert(orderData);
+
+        if (orderError) {
+            throw orderError;
+        }
+
+        toast({
+            title: "Service Submitted!",
+            description: `${selectedService.name} for ${values.clientName} has been logged successfully.`,
+        });
+        form.reset();
+        setSelectedService(null);
+        setFinalPrice(0);
+
+    } catch (error: any) {
+        toast({
+            title: "Submission Failed",
+            description: error.message,
+            variant: 'destructive',
+        });
+    } finally {
+        setSubmitting(false);
+    }
   }
 
   return (
-    <AppLayout allowedRoles={['employee']}>
+    <AppLayout allowedRoles={['admin', 'manager', 'employee']}>
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Submit a Service</h1>
         <p className="text-muted-foreground">
@@ -105,6 +181,7 @@ export default function SubmitServicePage() {
                                 "w-full justify-between",
                                 !field.value && "text-muted-foreground"
                               )}
+                              disabled={loadingServices}
                             >
                               {selectedService?.name ?? "Select service"}
                               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -115,26 +192,35 @@ export default function SubmitServicePage() {
                           <Command>
                             <CommandInput placeholder="Search service..." />
                             <CommandList>
-                            <CommandEmpty>No service found.</CommandEmpty>
-                            <CommandGroup>
-                              {services.map((service) => (
-                                <CommandItem
-                                  value={service.name}
-                                  key={service.id}
-                                  onSelect={() => handleServiceSelect(service)}
-                                >
-                                  <Check
-                                    className={cn(
-                                      "mr-2 h-4 w-4",
-                                      service.id === field.value
-                                        ? "opacity-100"
-                                        : "opacity-0"
-                                    )}
-                                  />
-                                  {service.name}
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
+                            {loadingServices ? (
+                                <div className="p-4 text-center text-sm">Loading...</div>
+                             ) : (
+                                <>
+                                <CommandEmpty>No service found.</CommandEmpty>
+                                <CommandGroup>
+                                {services.map((service) => (
+                                    <CommandItem
+                                    value={service.id.toString()}
+                                    key={service.id}
+                                    onSelect={(currentValue) => {
+                                        handleServiceSelect(currentValue);
+                                        form.clearErrors("serviceId");
+                                    }}
+                                    >
+                                    <Check
+                                        className={cn(
+                                        "mr-2 h-4 w-4",
+                                        service.id.toString() === field.value
+                                            ? "opacity-100"
+                                            : "opacity-0"
+                                        )}
+                                    />
+                                    {service.name}
+                                    </CommandItem>
+                                ))}
+                                </CommandGroup>
+                                </>
+                             )}
                             </CommandList>
                           </Command>
                         </PopoverContent>
@@ -147,11 +233,11 @@ export default function SubmitServicePage() {
                 {selectedService && (
                    <div className="flex flex-col space-y-1.5">
                      <FormLabel>Price Details</FormLabel>
-                     <div className="flex items-baseline p-2 border rounded-md">
+                     <div className="flex items-center p-2 border rounded-md h-10">
                        <p className="text-sm text-muted-foreground">
                          Base Price: ${selectedService.price.toFixed(2)}
-                         <span className="mx-2">|</span>
-                         Category: {selectedService.category}
+                         {selectedService.category && <span className="mx-2">|</span>}
+                         {selectedService.category && `Category: ${selectedService.category}`}
                        </p>
                      </div>
                    </div>
@@ -218,7 +304,10 @@ export default function SubmitServicePage() {
                   <h3 className="text-lg font-semibold">
                     Final Price: <span className="text-primary">${finalPrice.toFixed(2)}</span>
                   </h3>
-                  <Button type="submit">Submit Service</Button>
+                  <Button type="submit" disabled={submitting}>
+                    {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Submit Service
+                  </Button>
               </div>
             </form>
           </Form>
