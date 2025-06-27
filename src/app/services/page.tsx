@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -78,8 +79,9 @@ export default function ServicesPage() {
   };
   
   const handleFormSubmit = async (values: ServiceFormValues) => {
-    const serviceData: TablesUpdate<'services'> = {
+    const serviceData = {
       ...values,
+      category: values.category || null,
       link: values.link || null,
     }
 
@@ -100,7 +102,7 @@ export default function ServicesPage() {
       // Add logic
       const { error } = await supabase
         .from('services')
-        .insert(values as TablesInsert<'services'>);
+        .insert(serviceData as TablesInsert<'services'>);
       
       if (error) {
         toast({ title: "Error adding service", description: error.message, variant: 'destructive' });
@@ -237,7 +239,7 @@ export default function ServicesPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure you want to delete this service?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the service "{deletingService?.name}".
+              This action cannot be undone. This will permanently delete the service "{deletingService?.name}". This may fail if the service has been used in any orders.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useForm } from "react-hook-form";
@@ -19,7 +20,7 @@ type Service = Tables<'services'>;
 
 const formSchema = z.object({
   name: z.string().min(2, { message: "Service name must be at least 2 characters." }),
-  category: z.string().min(2, { message: "Category is required." }),
+  category: z.string().optional(),
   price: z.coerce.number().min(0, { message: "Price must be a positive number." }),
   link: z.string().url({ message: "Please enter a valid URL." }).optional().or(z.literal('')),
 });
@@ -64,7 +65,7 @@ export function ServiceForm({ onSubmit, onCancel, initialData }: ServiceFormProp
           name="category"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Category</FormLabel>
+              <FormLabel>Category (Optional)</FormLabel>
               <FormControl>
                 <Input placeholder="e.g., Styling" {...field} />
               </FormControl>
