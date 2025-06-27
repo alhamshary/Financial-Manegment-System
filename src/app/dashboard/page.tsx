@@ -191,7 +191,7 @@ function AdminManagerDashboard() {
     const todayEnd = `${todayIso}T23:59:59.999Z`;
 
     try {
-      const [ordersRes, activeRes, totalRes, attendanceRes] = await Promise.all([
+      const [ordersRes, totalUsersRes, todaysAttendanceRes] = await Promise.all([
         supabase
           .from('orders')
           .select('*, users(name), services(name), clients(name)')
@@ -199,35 +199,36 @@ function AdminManagerDashboard() {
           .lte('created_at', todayEnd)
           .order('created_at', { ascending: false }),
         supabase
-          .from('attendance')
-          .select('*', { count: 'exact', head: true })
-          .eq('work_date', todayIso)
-          .is('check_out', null),
-        supabase
           .from('users')
-          .select('*', { count: 'exact', head: true }),
+          .select('id', { count: 'exact', head: true }),
+        // Single query for all of today's attendance records
         supabase
           .from('attendance')
-          .select('session_duration, user_id')
+          .select('user_id, session_duration')
           .eq('work_date', todayIso)
-          .not('session_duration', 'is', null)
       ]);
 
       if (ordersRes.error) throw ordersRes.error;
-      if (activeRes.error) throw activeRes.error;
-      if (totalRes.error) throw totalRes.error;
-      if (attendanceRes.error) throw attendanceRes.error;
+      if (totalUsersRes.error) throw totalUsersRes.error;
+      if (todaysAttendanceRes.error) throw todaysAttendanceRes.error;
 
       const ordersData = (ordersRes.data as any) || [];
       setLogs(ordersData);
       
       const totalRevenue = ordersData.reduce((acc: number, log: any) => acc + (log.total || 0), 0);
       const servicesSold = ordersData.length;
-      const activeEmployees = activeRes.count || 0;
-      const totalEmployees = totalRes.count || 0;
 
-      const totalMinutes = attendanceRes.data?.reduce((acc, item) => acc + (item.session_duration || 0), 0) || 0;
-      const employeesWhoWorked = new Set(attendanceRes.data?.map(a => a.user_id)).size;
+      const todaysAttendanceData = todaysAttendanceRes.data || [];
+
+      // Correctly calculate active employees as unique users with any attendance today
+      const activeEmployees = new Set(todaysAttendanceData.map(a => a.user_id)).size;
+      
+      const totalEmployees = totalUsersRes.count || 0;
+
+      // Calculate average work hours from completed sessions
+      const completedSessions = todaysAttendanceData.filter(a => a.session_duration);
+      const totalMinutes = completedSessions.reduce((acc, item) => acc + (item.session_duration || 0), 0);
+      const employeesWhoWorked = new Set(completedSessions.map(a => a.user_id)).size;
       const avgWorkHours = employeesWhoWorked > 0 ? (totalMinutes / 60) / employeesWhoWorked : 0;
       
       setStats({
@@ -280,7 +281,7 @@ function AdminManagerDashboard() {
           </CardHeader>
           <CardContent>
             {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : <div className="text-2xl font-bold">{stats.activeEmployees} / {stats.totalEmployees}</div>}
-             <p className="text-xs text-muted-foreground">Checked-in employees</p>
+             <p className="text-xs text-muted-foreground">Employees with attendance today</p>
           </CardContent>
         </Card>
          <Card>
