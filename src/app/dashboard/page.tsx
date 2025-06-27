@@ -58,13 +58,15 @@ function EmployeeDashboard() {
   const fetchEmployeeData = useCallback(async () => {
     if (!user) return;
     
-    const todayIso = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
     if (dataFetchedForDate !== todayIso) {
       setLoadingServices(true);
     }
 
-    const todayStart = `${todayIso}T00:00:00.000Z`;
-    const todayEnd = `${todayIso}T23:59:59.999Z`;
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString();
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).toISOString();
 
     const { data: servicesData, error: servicesError } = await supabase
       .from('orders')
@@ -108,7 +110,8 @@ function EmployeeDashboard() {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        const todayIso = new Date().toISOString().split('T')[0];
+        const now = new Date();
+        const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
         if (dataFetchedForDate && dataFetchedForDate !== todayIso) {
           fetchEmployeeData();
         }
@@ -175,14 +178,16 @@ function AdminManagerDashboard() {
   const [dataFetchedForDate, setDataFetchedForDate] = useState<string | null>(null);
   
   const fetchAdminData = useCallback(async () => {
-    const todayIso = new Date().toISOString().split('T')[0];
-    
-    if (dataFetchedForDate !== todayIso) {
+    const now = new Date();
+    const localTodayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    if (dataFetchedForDate !== localTodayIso) {
         setLoading(true);
     }
 
-    const todayStart = `${todayIso}T00:00:00.000Z`;
-    const todayEnd = `${todayIso}T23:59:59.999Z`;
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString();
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).toISOString();
+    const utcTodayIso = new Date().toISOString().split('T')[0];
 
     try {
       const [ordersRes, totalUsersRes, todaysAttendanceRes] = await Promise.all([
@@ -198,7 +203,7 @@ function AdminManagerDashboard() {
         supabase
           .from('attendance')
           .select('user_id, session_duration')
-          .eq('work_date', todayIso)
+          .eq('work_date', utcTodayIso)
       ]);
 
       if (ordersRes.error) throw ordersRes.error;
@@ -207,7 +212,7 @@ function AdminManagerDashboard() {
 
       const ordersData = (ordersRes.data as AdminServiceLog[]) || [];
       setLogs(ordersData);
-      setDataFetchedForDate(todayIso);
+      setDataFetchedForDate(localTodayIso);
       
       const totalRevenue = ordersData.reduce((acc: number, log: any) => acc + (log.total || 0), 0);
       const servicesSold = ordersData.length;
@@ -256,8 +261,9 @@ function AdminManagerDashboard() {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        const todayIso = new Date().toISOString().split('T')[0];
-        if (dataFetchedForDate && dataFetchedForDate !== todayIso) {
+        const now = new Date();
+        const localTodayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        if (dataFetchedForDate && dataFetchedForDate !== localTodayIso) {
           fetchAdminData();
         }
       }
