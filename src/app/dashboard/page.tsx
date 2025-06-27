@@ -28,7 +28,7 @@ type AdminServiceLog = (Tables<'orders'> & {
 function EmployeeDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [time, setTime] = useState(new Date());
+  const [time, setTime] = useState<Date | null>(null);
   
   const [servicesToday, setServicesToday] = useState<EmployeeServiceLog[]>([]);
   const [loadingServices, setLoadingServices] = useState(true);
@@ -83,6 +83,7 @@ function EmployeeDashboard() {
   
   useEffect(() => {
     fetchEmployeeData();
+    setTime(new Date());
     const timerId = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timerId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -121,7 +122,7 @@ function EmployeeDashboard() {
           <CardTitle>Live Clock & Check-in/out</CardTitle>
         </CardHeader>
         <CardContent className="flex items-center justify-between">
-          <div className="text-4xl font-bold">{time.toLocaleTimeString()}</div>
+          <div className="text-4xl font-bold">{time ? time.toLocaleTimeString() : '--:--:--'}</div>
           <div className="flex gap-2">
             {loadingAttendance ? (
               <Button variant="outline" disabled><Loader2 className="animate-spin" />Loading...</Button>
