@@ -230,10 +230,10 @@ export default function SubmitServicePage() {
                                 <CommandGroup>
                                 {services.map((service) => (
                                     <CommandItem
-                                    value={service.id.toString()}
+                                    value={service.name}
                                     key={service.id}
-                                    onSelect={(currentValue) => {
-                                        handleServiceSelect(currentValue);
+                                    onSelect={() => {
+                                        handleServiceSelect(service.id.toString());
                                         form.clearErrors("serviceId");
                                     }}
                                     >
