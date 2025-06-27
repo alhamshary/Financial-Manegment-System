@@ -103,22 +103,48 @@ export default function SubmitServicePage() {
     setSubmitting(true);
 
     try {
-        // Step 1: Upsert client
-        const { data: clientData, error: clientError } = await supabase
-            .from('clients')
-            .upsert({ name: values.clientName, phone: values.clientPhone }, { onConflict: 'phone', ignoreDuplicates: false })
-            .select()
-            .single();
+        // Step 1: Find or create the client manually
+        let client: Tables<'clients'> | null = null;
 
-        if (clientError || !clientData) {
-            throw clientError || new Error("فشل في إنشاء أو العثور على العميل.");
+        // Try to find an existing client by phone number
+        const { data: existingClient, error: findError } = await supabase
+            .from('clients')
+            .select('*')
+            .eq('phone', values.clientPhone)
+            .limit(1)
+            .single();
+        
+        // If there's an error and it's not "no rows found", throw it
+        if (findError && findError.code !== 'PGRST116') {
+            throw findError;
         }
+        
+        if (existingClient) {
+            client = existingClient;
+        } else {
+            // No client found, so create a new one
+            const { data: newClient, error: insertError } = await supabase
+                .from('clients')
+                .insert({ name: values.clientName, phone: values.clientPhone })
+                .select()
+                .single();
+            
+            if (insertError) {
+                throw insertError;
+            }
+            client = newClient;
+        }
+
+        if (!client) {
+             throw new Error("فشل في إنشاء أو العثور على العميل.");
+        }
+
 
         // Step 2: Create order
         const orderData = {
             user_id: user.id,
             service_id: selectedService.id,
-            client_id: clientData.id,
+            client_id: client.id,
             price: selectedService.price,
             quantity: values.quantity,
             discount: values.discount,
@@ -188,7 +214,7 @@ export default function SubmitServicePage() {
                               disabled={loadingServices}
                             >
                               {selectedService?.name ?? "اختر خدمة"}
-                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
                             </Button>
                           </FormControl>
                         </PopoverTrigger>
