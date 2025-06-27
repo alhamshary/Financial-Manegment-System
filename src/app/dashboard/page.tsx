@@ -12,16 +12,20 @@ import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
 
 // Define combined types for easier handling
-type EmployeeServiceLog = (Tables<'orders'> & { 
-  services: Pick<Tables<'services'>, 'name'> | null, 
-  clients: Pick<Tables<'clients'>, 'name'> | null 
-});
+type EmployeeServiceLog = {
+  id: number;
+  total: number | null;
+  services: Pick<Tables<'services'>, 'name'> | null;
+  clients: Pick<Tables<'clients'>, 'name'> | null;
+};
 
-type AdminServiceLog = (Tables<'orders'> & {
+type AdminServiceLog = {
+  id: number;
+  total: number | null;
   users: Pick<Tables<'users'>, 'name'> | null;
   services: Pick<Tables<'services'>, 'name'> | null;
   clients: Pick<Tables<'clients'>, 'name'> | null;
-});
+};
 
 function SessionTimerCard() {
   const { user } = useAuth();
@@ -122,7 +126,7 @@ function EmployeeDashboard() {
     // Fetch services
     const { data: servicesData, error: servicesError } = await supabase
       .from('orders')
-      .select('*, services(name), clients(name)')
+      .select('id, total, services(name), clients(name)')
       .eq('user_id', user.id)
       .gte('created_at', todayStart)
       .lte('created_at', todayEnd)
@@ -131,7 +135,7 @@ function EmployeeDashboard() {
     if (servicesError) {
       toast({ title: "خطأ في جلب الخدمات", description: servicesError.message, variant: 'destructive' });
     } else {
-      setServicesToday((servicesData as any) || []);
+      setServicesToday((servicesData as EmployeeServiceLog[]) || []);
     }
     setLoadingServices(false);
   };
@@ -205,7 +209,7 @@ function AdminManagerDashboard() {
       const [ordersRes, totalUsersRes, todaysAttendanceRes] = await Promise.all([
         supabase
           .from('orders')
-          .select('*, users(name), services(name), clients(name)')
+          .select('id, total, users(name), services(name), clients(name)')
           .gte('created_at', todayStart)
           .lte('created_at', todayEnd)
           .order('created_at', { ascending: false }),
@@ -223,7 +227,7 @@ function AdminManagerDashboard() {
       if (totalUsersRes.error) throw totalUsersRes.error;
       if (todaysAttendanceRes.error) throw todaysAttendanceRes.error;
 
-      const ordersData = (ordersRes.data as any) || [];
+      const ordersData = (ordersRes.data as AdminServiceLog[]) || [];
       setLogs(ordersData);
       
       const totalRevenue = ordersData.reduce((acc: number, log: any) => acc + (log.total || 0), 0);

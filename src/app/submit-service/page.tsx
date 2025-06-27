@@ -59,7 +59,7 @@ export default function SubmitServicePage() {
   useEffect(() => {
     const fetchServices = async () => {
       setLoadingServices(true);
-      const { data, error } = await supabase.from('services').select('*').order('name');
+      const { data, error } = await supabase.from('services').select('id, name, price, category, link').order('name');
       if (error) {
         toast({ title: "خطأ في جلب الخدمات", description: error.message, variant: 'destructive' });
       } else {

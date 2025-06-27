@@ -42,7 +42,7 @@ export default function TeamPage() {
     setLoading(true);
     const { data, error } = await supabase
       .from('users')
-      .select('*')
+      .select('id, name, email, role')
       .order('name', { ascending: true });
 
     if (error) {

@@ -47,7 +47,7 @@ export default function ServicesPage() {
     setLoading(true);
     const { data, error } = await supabase
       .from('services')
-      .select('*')
+      .select('id, name, category, price, link')
       .order('name', { ascending: true });
 
     if (error) {

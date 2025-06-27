@@ -27,7 +27,7 @@ export default function LoginPage() {
     <main className="flex min-h-screen flex-col items-center justify-center p-4">
       <div className="absolute top-8 text-center">
         <h1 className="text-4xl font-bold tracking-tight text-primary">
-          مرحباً بكم في الهمشري
+          مرحباً بكم في نظام المحاسبة للهمشري
         </h1>
         <p className="text-muted-foreground">
           الحل المتكامل لإدارة خدماتك.

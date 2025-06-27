@@ -19,10 +19,15 @@ import type { Tables } from "@/lib/database.types";
 import { useToast } from "@/hooks/use-toast";
 
 // Define combined type for easier handling
-type OrderLog = Tables<'orders'> & {
-  users: Tables<'users'> | null;
-  services: Tables<'services'> | null;
-  clients: Tables<'clients'> | null;
+type OrderLog = {
+  id: number;
+  created_at: string | null;
+  total: number | null;
+  user_id: string;
+  service_id: number;
+  users: { name: string; role: string; } | null;
+  services: { name: string; } | null;
+  clients: { name: string; phone: string | null; } | null;
 };
 
 
@@ -45,7 +50,7 @@ export default function ReportsPage() {
     setLoading(true);
     try {
       const [logsData, usersData, servicesData] = await Promise.all([
-        supabase.from('orders').select('*, users(*), services(*), clients(*)').order('created_at', { ascending: false }),
+        supabase.from('orders').select('id, created_at, total, user_id, service_id, users(name, role), services(name), clients(name, phone)').order('created_at', { ascending: false }),
         supabase.from('users').select('*').order('name'),
         supabase.from('services').select('*').order('name'),
       ]);
@@ -54,7 +59,7 @@ export default function ReportsPage() {
       if (usersData.error) throw usersData.error;
       if (servicesData.error) throw servicesData.error;
       
-      const logs = (logsData.data as any[]) || [];
+      const logs = (logsData.data as OrderLog[]) || [];
       setAllLogs(logs);
       setFilteredLogs(logs); // Initially show all
       setUsers(usersData.data || []);
