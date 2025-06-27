@@ -1,9 +1,9 @@
 "use client";
 
 import type { ReactNode } from 'react';
-import { createContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { users } from '@/lib/data';
+import { supabase } from '@/lib/supabase';
 
 export type UserRole = 'admin' | 'manager' | 'employee';
 
@@ -12,12 +12,11 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
-  password?: string;
 }
 
 export interface AuthContextType {
   user: User | null;
-  login: (email: string, pass: string) => Promise<boolean>;
+  login: (email: string, pass:string) => Promise<boolean>;
   logout: () => void;
   loading: boolean;
 }
@@ -30,48 +29,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const handleUserSession = useCallback(() => {
-    try {
-      const storedUser = localStorage.getItem('alhamshary_user');
-      if (storedUser) {
-        const parsedUser: User = JSON.parse(storedUser);
-        setUser(parsedUser);
-        if (pathname === '/') {
-          router.replace('/dashboard');
-        }
-      } else if (pathname !== '/') {
-        router.replace('/');
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const currentUser = session?.user;
+      if (currentUser) {
+        setUser({
+          id: currentUser.id,
+          email: currentUser.email!,
+          // Supabase stores custom data in user_metadata
+          name: currentUser.user_metadata.name || 'User',
+          role: currentUser.user_metadata.role || 'employee',
+        });
+      } else {
+        setUser(null);
       }
-    } catch (error) {
-      console.error("Failed to parse user from localStorage", error);
-      localStorage.removeItem('alhamshary_user');
-      if (pathname !== '/') {
-        router.replace('/');
-      }
-    } finally {
       setLoading(false);
-    }
-  }, [pathname, router]);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
-    handleUserSession();
-  }, [handleUserSession]);
+    if (loading) return;
+    
+    // If user is logged in and on the login page, redirect to dashboard
+    if (user && pathname === '/') {
+      router.replace('/dashboard');
+    } 
+    // If user is not logged in and not on the login page, redirect to login
+    else if (!user && pathname !== '/') {
+      router.replace('/');
+    }
+  }, [user, loading, pathname, router]);
   
   const login = async (email: string, pass: string): Promise<boolean> => {
-    const foundUser = users.find(u => u.email === email && u.password === pass);
-    if (foundUser) {
-      const { password, ...userToStore } = foundUser;
-      setUser(userToStore);
-      localStorage.setItem('alhamshary_user', JSON.stringify(userToStore));
-      router.push('/dashboard');
-      return true;
+    const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
+    if (error) {
+      console.error("Login error:", error.message);
+      return false;
     }
-    return false;
+    // onAuthStateChange will handle setting the user and redirecting
+    return true;
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('alhamshary_user');
+  const logout = async () => {
+    await supabase.auth.signOut();
+    // onAuthStateChange will handle cleanup and we redirect here
     router.push('/');
   };
 

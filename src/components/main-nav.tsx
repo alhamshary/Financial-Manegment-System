@@ -12,7 +12,7 @@ import {
   Icon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { UserRole } from "@/lib/auth";
+import type { UserRole } from "@/components/auth-provider";
 
 type NavItem = {
   href: string;

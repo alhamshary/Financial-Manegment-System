@@ -1,4 +1,4 @@
-import type { User } from './auth';
+import type { User } from '@/components/auth-provider';
 
 export type Service = {
   id: string;
@@ -20,11 +20,11 @@ export type ServiceLog = {
 };
 
 export const users: User[] = [
-  { id: '1', name: 'Admin User', email: 'admin@alhamshary.com', role: 'admin', password: 'password' },
-  { id: '2', name: 'Manager User', email: 'manager@alhamshary.com', role: 'manager', password: 'password' },
-  { id: '3', name: 'Employee User', email: 'employee@alhamshary.com', role: 'employee', password: 'password' },
-  { id: '4', name: 'Sara Smith', email: 'sara@alhamshary.com', role: 'employee', password: 'password' },
-  { id: '5', name: 'John Doe', email: 'john@alhamshary.com', role: 'employee', password: 'password' },
+  { id: '1', name: 'Admin User', email: 'admin@alhamshary.com', role: 'admin' },
+  { id: '2', name: 'Manager User', email: 'manager@alhamshary.com', role: 'manager' },
+  { id: '3', name: 'Employee User', email: 'employee@alhamshary.com', role: 'employee' },
+  { id: '4', name: 'Sara Smith', email: 'sara@alhamshary.com', role: 'employee' },
+  { id: '5', name: 'John Doe', email: 'john@alhamshary.com', role: 'employee' },
 ];
 
 export const services: Service[] = [
