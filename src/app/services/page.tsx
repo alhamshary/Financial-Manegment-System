@@ -141,7 +141,7 @@ export default function ServicesPage() {
           </p>
         </div>
         <Button onClick={handleOpenAddDialog}>
-          <PlusCircle className="ml-2 h-4 w-4" />
+          <PlusCircle className="h-4 w-4" />
           إضافة خدمة
         </Button>
       </div>

@@ -43,13 +43,13 @@ export function UserNav() {
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem>
-            <UserIcon className="ml-2 h-4 w-4" />
+            <UserIcon className="h-4 w-4" />
             <span>الملف الشخصي</span>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={logout}>
-          <LogOut className="ml-2 h-4 w-4" />
+          <LogOut className="h-4 w-4" />
           <span>تسجيل الخروج</span>
         </DropdownMenuItem>
       </DropdownMenuContent>

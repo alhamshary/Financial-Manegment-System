@@ -148,7 +148,7 @@ export default function TeamPage() {
           </p>
         </div>
         <Button onClick={handleOpenAddDialog}>
-          <PlusCircle className="ml-2 h-4 w-4" />
+          <PlusCircle className="h-4 w-4" />
           إضافة مستخدم
         </Button>
       </div>

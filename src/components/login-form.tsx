@@ -93,7 +93,7 @@ export function LoginForm() {
               )}
             />
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading && <div className="ml-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent"></div>}
+              {loading && <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent"></div>}
               تسجيل الدخول
             </Button>
           </form>

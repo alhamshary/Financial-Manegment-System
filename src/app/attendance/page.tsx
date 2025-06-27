@@ -169,7 +169,7 @@ export default function AttendancePage() {
           </p>
         </div>
         <Button onClick={exportToCsv} disabled={loading || aggregatedData.length === 0}>
-          <Download className="ml-2 h-4 w-4" />
+          <Download className="h-4 w-4" />
           تصدير كـ CSV
         </Button>
       </div>
@@ -185,7 +185,7 @@ export default function AttendancePage() {
                   variant={"outline"}
                   className={cn("w-[300px] justify-start text-start font-normal", !date && "text-muted-foreground")}
                 >
-                  <CalendarIcon className="ml-2 h-4 w-4" />
+                  <CalendarIcon className="h-4 w-4" />
                   {date?.from ? (
                     date.to ? (
                       <>
@@ -222,7 +222,7 @@ export default function AttendancePage() {
               </SelectContent>
             </Select>
              <Button onClick={() => handleApplyFilters()} disabled={isFiltering}>
-                {isFiltering && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+                {isFiltering && <Loader2 className="h-4 w-4 animate-spin" />}
                 تطبيق الفلاتر
              </Button>
           </div>

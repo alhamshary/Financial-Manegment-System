@@ -335,7 +335,7 @@ export default function SubmitServicePage() {
                     السعر النهائي: <span className="text-primary">${finalPrice.toFixed(2)}</span>
                   </h3>
                   <Button type="submit" disabled={submitting}>
-                    {submitting && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+                    {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
                     إرسال الخدمة
                   </Button>
               </div>
