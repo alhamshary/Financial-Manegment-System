@@ -13,17 +13,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/use-auth";
+import { getInitials } from "@/lib/utils";
 import { LogOut, User as UserIcon } from "lucide-react";
 
 export function UserNav() {
   const { user, logout } = useAuth();
 
   if (!user) return null;
-
-  const getInitials = (name: string) => {
-    if (!name) return '';
-    return (name.trim().split(' ')[0]?.[0] || '').toUpperCase();
-  }
 
   return (
     <DropdownMenu>

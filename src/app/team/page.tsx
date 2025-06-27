@@ -16,6 +16,7 @@ import { UserForm, type UserFormValues, type UserRole } from "@/components/user-
 import { useToast } from "@/hooks/use-toast";
 import type { Tables } from "@/lib/database.types";
 import { supabase } from "@/lib/supabase";
+import { getInitials } from "@/lib/utils";
 
 type User = Tables<'users'>;
 
@@ -32,11 +33,6 @@ export default function TeamPage() {
   const [isAddOrEditDialogOpen, setIsAddOrEditDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
-
-  const getInitials = (name: string) => {
-    if (!name) return "";
-    return (name.trim().split(' ')[0]?.[0] || '').toUpperCase();
-  }
 
   const fetchUsers = async () => {
     setLoading(true);
