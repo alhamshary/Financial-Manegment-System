@@ -28,67 +28,7 @@ type AdminServiceLog = {
 };
 
 function SessionTimerCard() {
-  const { user } = useAuth();
-  const { toast } = useToast();
-  const [sessionStartTime, setSessionStartTime] = useState<string | null>(null);
-  const [sessionDuration, setSessionDuration] = useState('00:00:00');
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!user) return;
-
-    const fetchActiveSession = async () => {
-      setLoading(true);
-      const todayIso = new Date().toISOString().split('T')[0];
-      const { data, error } = await supabase
-        .from('attendance')
-        .select('check_in')
-        .eq('user_id', user.id)
-        .eq('work_date', todayIso)
-        .is('check_out', null)
-        .order('check_in', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (error && error.code !== 'PGRST116') { // Ignore "No rows found"
-        toast({ title: "خطأ في جلب الجلسة", description: error.message, variant: 'destructive' });
-      } else if (data) {
-        setSessionStartTime(data.check_in);
-      }
-      setLoading(false);
-    };
-
-    fetchActiveSession();
-  }, [user, toast]);
-
-  useEffect(() => {
-    if (!sessionStartTime) {
-      setSessionDuration('00:00:00');
-      return;
-    }
-
-    const timer = setInterval(() => {
-      const start = new Date(sessionStartTime).getTime();
-      const now = new Date().getTime();
-      const difference = now - start;
-
-      if (difference < 0) {
-        setSessionDuration('00:00:00');
-        clearInterval(timer);
-        return;
-      }
-
-      const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((difference % (1000 * 60)) / 1000);
-
-      setSessionDuration(
-        `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
-      );
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [sessionStartTime]);
+  const { sessionDuration, isSessionLoading } = useAuth();
 
   return (
     <Card>
@@ -96,7 +36,7 @@ function SessionTimerCard() {
         <CardTitle>مدة الجلسة الحالية</CardTitle>
       </CardHeader>
       <CardContent>
-        {loading ? (
+        {isSessionLoading ? (
           <Loader2 className="h-8 w-8 animate-spin" />
         ) : (
           <div className="text-4xl font-bold tracking-wider">{sessionDuration}</div>
