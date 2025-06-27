@@ -11,7 +11,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { format, startOfDay, endOfDay, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
@@ -35,6 +35,7 @@ export default function AttendancePage() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [isFiltering, setIsFiltering] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   
   // Data state
   const [rawLogs, setRawLogs] = useState<AttendanceLog[]>([]);
@@ -47,6 +48,11 @@ export default function AttendancePage() {
     to: new Date(),
   });
   const [selectedUser, setSelectedUser] = useState<string>('');
+  
+  // Set isMounted to true after initial render to avoid hydration errors
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Fetch filter options and initial data
   useEffect(() => {
@@ -159,6 +165,17 @@ export default function AttendancePage() {
     return `${hours} س ${mins} د`;
   }
 
+  // Prevent rendering on the server to avoid hydration errors
+  if (!isMounted) {
+    return (
+      <AppLayout allowedRoles={['admin', 'manager']}>
+         <div className="flex justify-center items-center h-[calc(100vh-200px)]">
+            <Loader2 className="h-8 w-8 animate-spin" />
+         </div>
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout allowedRoles={['admin', 'manager']}>
       <div className="flex items-center justify-between">
@@ -169,7 +186,7 @@ export default function AttendancePage() {
           </p>
         </div>
         <Button onClick={exportToCsv} disabled={loading || aggregatedData.length === 0}>
-          <Download className="h-4 w-4" />
+          <Download />
           تصدير كـ CSV
         </Button>
       </div>
@@ -185,7 +202,7 @@ export default function AttendancePage() {
                   variant={"outline"}
                   className={cn("w-[300px] justify-start text-start font-normal", !date && "text-muted-foreground")}
                 >
-                  <CalendarIcon className="h-4 w-4" />
+                  <CalendarIcon />
                   {date?.from ? (
                     date.to ? (
                       <>

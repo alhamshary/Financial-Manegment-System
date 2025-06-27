@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Clock, DollarSign, Users, Wrench, Loader2 } from "lucide-react";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
@@ -54,12 +54,11 @@ function EmployeeDashboard() {
   const [servicesToday, setServicesToday] = useState<EmployeeServiceLog[]>([]);
   const [loadingServices, setLoadingServices] = useState(true);
 
-  const todayIso = new Date().toISOString().split('T')[0];
-
   const fetchEmployeeData = async () => {
     if (!user) return;
     setLoadingServices(true);
 
+    const todayIso = new Date().toISOString().split('T')[0];
     const todayStart = `${todayIso}T00:00:00.000Z`;
     const todayEnd = `${todayIso}T23:59:59.999Z`;
 
@@ -137,11 +136,10 @@ function AdminManagerDashboard() {
   const [logs, setLogs] = useState<AdminServiceLog[]>([]);
   const [loading, setLoading] = useState(true);
   
-  const todayIso = new Date().toISOString().split('T')[0];
-
   const fetchAdminData = async () => {
     setLoading(true);
 
+    const todayIso = new Date().toISOString().split('T')[0];
     const todayStart = `${todayIso}T00:00:00.000Z`;
     const todayEnd = `${todayIso}T23:59:59.999Z`;
 
@@ -292,6 +290,22 @@ function AdminManagerDashboard() {
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const [isMounted, setIsMounted] = useState(false);
+  
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Prevent rendering on the server to avoid hydration errors from new Date() in children
+  if (!isMounted) {
+    return (
+       <AppLayout>
+         <div className="flex h-[calc(100vh-200px)] w-full items-center justify-center">
+            <Loader2 className="h-12 w-12 animate-spin" />
+         </div>
+       </AppLayout>
+    );
+  }
   
   return (
     <AppLayout>

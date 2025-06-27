@@ -42,14 +42,14 @@ export function UserNav() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem>
-            <UserIcon className="h-4 w-4" />
+          <DropdownMenuItem disabled>
+            <UserIcon />
             <span>الملف الشخصي</span>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={logout}>
-          <LogOut className="h-4 w-4" />
+          <LogOut />
           <span>تسجيل الخروج</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
