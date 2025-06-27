@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -581,7 +582,7 @@ const SidebarMenuButton = React.forwardRef<
       <Tooltip>
         <TooltipTrigger asChild>{button}</TooltipTrigger>
         <TooltipContent
-          side="right"
+          side="left"
           align="center"
           hidden={state !== "collapsed" || isMobile}
           {...tooltip}

@@ -64,7 +64,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
 
   return (
     <SidebarProvider>
-      <Sidebar>
+      <Sidebar side="right">
         <SidebarHeader className="p-4">
           <h1 className="text-2xl font-bold text-sidebar-foreground">الهمشري</h1>
         </SidebarHeader>
@@ -77,9 +77,9 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
       </Sidebar>
       <SidebarInset>
         <header className="flex h-14 items-center justify-between border-b bg-background/80 backdrop-blur-sm px-4 lg:px-6">
-          <SidebarTrigger />
-          <h2 className="text-xl font-semibold">{officeTitle}</h2>
           <UserNav />
+          <h2 className="text-xl font-semibold">{officeTitle}</h2>
+          <SidebarTrigger />
         </header>
         <main className="flex-1 p-4 sm:p-6">{children}</main>
       </SidebarInset>
