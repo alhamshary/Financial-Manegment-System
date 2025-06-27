@@ -1,24 +1,118 @@
+
 "use client";
 import { AppLayout } from "@/components/app-layout";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Clock, DollarSign, Users, Wrench } from "lucide-react";
-import { serviceLogs, services, users } from "@/lib/data";
-import { useEffect, useState } from "react";
+import { Clock, DollarSign, Users, Wrench, Loader2 } from "lucide-react";
+import { useEffect, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
+import type { Tables } from "@/lib/database.types";
+
+// Define combined types for easier handling
+type EmployeeServiceLog = (Tables<'orders'> & { 
+  services: Pick<Tables<'services'>, 'name'> | null, 
+  clients: Pick<Tables<'clients'>, 'name'> | null 
+});
+
+type AdminServiceLog = (Tables<'orders'> & {
+  users: Pick<Tables<'users'>, 'name'> | null;
+  services: Pick<Tables<'services'>, 'name'> | null;
+  clients: Pick<Tables<'clients'>, 'name'> | null;
+});
+
 
 function EmployeeDashboard() {
   const { user } = useAuth();
-  const userLogs = serviceLogs.filter(log => log.employeeId === user?.id && new Date(log.date).toDateString() === new Date().toDateString());
-
+  const { toast } = useToast();
   const [time, setTime] = useState(new Date());
+  
+  const [servicesToday, setServicesToday] = useState<EmployeeServiceLog[]>([]);
+  const [loadingServices, setLoadingServices] = useState(true);
+  
+  const [isCheckedIn, setIsCheckedIn] = useState<boolean | null>(null);
+  const [loadingAttendance, setLoadingAttendance] = useState(true);
 
+  const todayIso = new Date().toISOString().split('T')[0];
+
+  const fetchEmployeeData = async () => {
+    if (!user) return;
+    setLoadingServices(true);
+    setLoadingAttendance(true);
+
+    const todayStart = `${todayIso}T00:00:00.000Z`;
+    const todayEnd = `${todayIso}T23:59:59.999Z`;
+
+    // Fetch services
+    const { data: servicesData, error: servicesError } = await supabase
+      .from('orders')
+      .select('*, services(name), clients(name)')
+      .eq('user_id', user.id)
+      .gte('created_at', todayStart)
+      .lte('created_at', todayEnd)
+      .order('created_at', { ascending: false });
+    
+    if (servicesError) {
+      toast({ title: "Error fetching services", description: servicesError.message, variant: 'destructive' });
+    } else {
+      setServicesToday((servicesData as any) || []);
+    }
+    setLoadingServices(false);
+    
+    // Fetch attendance status
+    const { data: attendanceData, error: attendanceError } = await supabase
+      .from('attendance')
+      .select('id, check_out')
+      .eq('user_id', user.id)
+      .eq('work_date', todayIso)
+      .is('check_out', null)
+      .single();
+
+    if (attendanceError && attendanceError.code !== 'PGRST116') { // Ignore "No rows found"
+        toast({ title: "Error fetching attendance", description: attendanceError.message, variant: 'destructive' });
+    } else if (attendanceData) {
+        setIsCheckedIn(true);
+    } else {
+        setIsCheckedIn(false);
+    }
+    setLoadingAttendance(false);
+  };
+  
   useEffect(() => {
+    fetchEmployeeData();
     const timerId = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timerId);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  const handleCheckIn = async () => {
+    if (!user) return;
+    setLoadingAttendance(true);
+    const { error } = await supabase.rpc('auto_start_attendance', { user_id_param: user.id });
+    if (error) {
+        toast({ title: "Check-in failed", description: error.message, variant: 'destructive' });
+    } else {
+        toast({ title: "Checked In", description: "Your work session has started." });
+        setIsCheckedIn(true);
+    }
+    setLoadingAttendance(false);
+  };
+  
+  const handleCheckOut = async () => {
+    if (!user) return;
+    setLoadingAttendance(true);
+    const { error } = await supabase.rpc('end_current_attendance', { user_id_param: user.id });
+    if (error) {
+        toast({ title: "Check-out failed", description: error.message, variant: 'destructive' });
+    } else {
+        toast({ title: "Checked Out", description: "Your work session has ended." });
+        setIsCheckedIn(false);
+    }
+    setLoadingAttendance(false);
+  };
 
   return (
     <div className="grid gap-6">
@@ -29,8 +123,13 @@ function EmployeeDashboard() {
         <CardContent className="flex items-center justify-between">
           <div className="text-4xl font-bold">{time.toLocaleTimeString()}</div>
           <div className="flex gap-2">
-            <Button variant="outline">Check In</Button>
-            <Button variant="destructive">Check Out</Button>
+            {loadingAttendance ? (
+              <Button variant="outline" disabled><Loader2 className="animate-spin" />Loading...</Button>
+            ) : isCheckedIn ? (
+              <Button variant="destructive" onClick={handleCheckOut}>Check Out</Button>
+            ) : (
+              <Button variant="outline" onClick={handleCheckIn}>Check In</Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -48,13 +147,14 @@ function EmployeeDashboard() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {userLogs.length > 0 ? userLogs.map(log => {
-                const service = services.find(s => s.id === log.serviceId);
+              {loadingServices ? (
+                 <TableRow><TableCell colSpan={3} className="text-center h-24"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
+              ) : servicesToday.length > 0 ? servicesToday.map(log => {
                 return (
                   <TableRow key={log.id}>
-                    <TableCell>{service?.name || 'N/A'}</TableCell>
-                    <TableCell>{log.clientName}</TableCell>
-                    <TableCell className="text-right">${log.finalPrice.toFixed(2)}</TableCell>
+                    <TableCell>{log.services?.name || 'N/A'}</TableCell>
+                    <TableCell>{log.clients?.name || 'N/A'}</TableCell>
+                    <TableCell className="text-right">${(log.total ?? 0).toFixed(2)}</TableCell>
                   </TableRow>
                 )
               }) : (
@@ -71,8 +171,84 @@ function EmployeeDashboard() {
 }
 
 function AdminManagerDashboard() {
-  const todayLogs = serviceLogs.filter(log => new Date(log.date).toDateString() === new Date().toDateString());
-  const totalRevenue = todayLogs.reduce((acc, log) => acc + log.finalPrice, 0);
+  const { toast } = useToast();
+  const [stats, setStats] = useState({
+    totalRevenue: 0,
+    servicesSold: 0,
+    activeEmployees: 0,
+    totalEmployees: 0,
+    avgWorkHours: 0,
+  });
+  const [logs, setLogs] = useState<AdminServiceLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  const todayIso = new Date().toISOString().split('T')[0];
+
+  const fetchAdminData = async () => {
+    setLoading(true);
+
+    const todayStart = `${todayIso}T00:00:00.000Z`;
+    const todayEnd = `${todayIso}T23:59:59.999Z`;
+
+    try {
+      const [ordersRes, activeRes, totalRes, attendanceRes] = await Promise.all([
+        supabase
+          .from('orders')
+          .select('*, users(name), services(name), clients(name)')
+          .gte('created_at', todayStart)
+          .lte('created_at', todayEnd)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('attendance')
+          .select('*', { count: 'exact', head: true })
+          .eq('work_date', todayIso)
+          .is('check_out', null),
+        supabase
+          .from('users')
+          .select('*', { count: 'exact', head: true }),
+        supabase
+          .from('attendance')
+          .select('session_duration, user_id')
+          .eq('work_date', todayIso)
+          .not('session_duration', 'is', null)
+      ]);
+
+      if (ordersRes.error) throw ordersRes.error;
+      if (activeRes.error) throw activeRes.error;
+      if (totalRes.error) throw totalRes.error;
+      if (attendanceRes.error) throw attendanceRes.error;
+
+      const ordersData = (ordersRes.data as any) || [];
+      setLogs(ordersData);
+      
+      const totalRevenue = ordersData.reduce((acc: number, log: any) => acc + (log.total || 0), 0);
+      const servicesSold = ordersData.length;
+      const activeEmployees = activeRes.count || 0;
+      const totalEmployees = totalRes.count || 0;
+
+      const totalMinutes = attendanceRes.data?.reduce((acc, item) => acc + (item.session_duration || 0), 0) || 0;
+      const employeesWhoWorked = new Set(attendanceRes.data?.map(a => a.user_id)).size;
+      const avgWorkHours = employeesWhoWorked > 0 ? (totalMinutes / 60) / employeesWhoWorked : 0;
+      
+      setStats({
+        totalRevenue,
+        servicesSold,
+        activeEmployees,
+        totalEmployees,
+        avgWorkHours
+      });
+
+    } catch (error: any) {
+        toast({ title: "Error fetching dashboard data", description: error.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAdminData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="grid gap-6">
@@ -83,8 +259,8 @@ function AdminManagerDashboard() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${totalRevenue.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">+20.1% from last month</p>
+            {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : <div className="text-2xl font-bold">${stats.totalRevenue.toFixed(2)}</div>}
+            <p className="text-xs text-muted-foreground">Based on today's logs</p>
           </CardContent>
         </Card>
         <Card>
@@ -93,7 +269,7 @@ function AdminManagerDashboard() {
             <Wrench className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">+{todayLogs.length}</div>
+            {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : <div className="text-2xl font-bold">+{stats.servicesSold}</div>}
              <p className="text-xs text-muted-foreground">Total services performed</p>
           </CardContent>
         </Card>
@@ -103,7 +279,7 @@ function AdminManagerDashboard() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">3 / 5</div>
+            {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : <div className="text-2xl font-bold">{stats.activeEmployees} / {stats.totalEmployees}</div>}
              <p className="text-xs text-muted-foreground">Checked-in employees</p>
           </CardContent>
         </Card>
@@ -113,7 +289,7 @@ function AdminManagerDashboard() {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">7.5h</div>
+            {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : <div className="text-2xl font-bold">{stats.avgWorkHours.toFixed(1)}h</div>}
              <p className="text-xs text-muted-foreground">Average per employee today</p>
           </CardContent>
         </Card>
@@ -133,15 +309,15 @@ function AdminManagerDashboard() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {todayLogs.length > 0 ? todayLogs.map(log => {
-                const service = services.find(s => s.id === log.serviceId);
-                const employee = users.find(u => u.id === log.employeeId);
+              {loading ? (
+                <TableRow><TableCell colSpan={4} className="text-center h-24"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
+              ) : logs.length > 0 ? logs.map(log => {
                 return (
                   <TableRow key={log.id}>
-                    <TableCell>{employee?.name || 'N/A'}</TableCell>
-                    <TableCell><Badge variant="outline">{service?.name || 'N/A'}</Badge></TableCell>
-                    <TableCell>{log.clientName}</TableCell>
-                    <TableCell className="text-right">${log.finalPrice.toFixed(2)}</TableCell>
+                    <TableCell>{log.users?.name || 'N/A'}</TableCell>
+                    <TableCell><Badge variant="outline">{log.services?.name || 'N/A'}</Badge></TableCell>
+                    <TableCell>{log.clients?.name || 'N/A'}</TableCell>
+                    <TableCell className="text-right">${(log.total ?? 0).toFixed(2)}</TableCell>
                   </TableRow>
                 )
               }) : (
