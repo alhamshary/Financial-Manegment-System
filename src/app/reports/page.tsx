@@ -5,11 +5,11 @@ import { AppLayout } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Download, DollarSign, Wrench, Users as UsersIcon, Loader2 } from "lucide-react";
+import { Download, DollarSign, Wrench, Users as UsersIcon, Loader2, AlertCircle } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Calendar as CalendarIcon } from "lucide-react";
-import { format, isWithinInterval, startOfDay, endOfDay } from "date-fns";
+import { format, startOfDay, endOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
 import { useEffect, useState, useMemo } from "react";
@@ -17,6 +17,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
 import { useToast } from "@/hooks/use-toast";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
 
 // Define combined type for easier handling
 type OrderLog = {
@@ -34,9 +36,9 @@ type OrderLog = {
 export default function ReportsPage() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
+  const [isFiltering, setIsFiltering] = useState(false);
   
   // Data state
-  const [allLogs, setAllLogs] = useState<OrderLog[]>([]);
   const [filteredLogs, setFilteredLogs] = useState<OrderLog[]>([]);
   const [users, setUsers] = useState<Tables<'users'>[]>([]);
   const [services, setServices] = useState<Tables<'services'>[]>([]);
@@ -46,61 +48,77 @@ export default function ReportsPage() {
   const [selectedEmployee, setSelectedEmployee] = useState<string>('');
   const [selectedService, setSelectedService] = useState<string>('');
 
-  const fetchData = async () => {
-    setLoading(true);
+  const handleApplyFilters = async (isInitialLoad = false) => {
+    if (!isInitialLoad) {
+      setIsFiltering(true);
+    }
     try {
-      const [logsData, usersData, servicesData] = await Promise.all([
-        supabase.from('orders').select('id, created_at, total, user_id, service_id, users(name, role), services(name), clients(name, phone)').order('created_at', { ascending: false }),
-        supabase.from('users').select('*').order('name'),
-        supabase.from('services').select('*').order('name'),
-      ]);
+      let query = supabase
+        .from('orders')
+        .select('id, created_at, total, user_id, service_id, users(name, role), services(name), clients(name, phone)');
 
-      if (logsData.error) throw logsData.error;
-      if (usersData.error) throw usersData.error;
-      if (servicesData.error) throw servicesData.error;
+      // Apply filters to the query
+      if (date?.from) {
+        query = query.gte('created_at', startOfDay(date.from).toISOString());
+        const toDate = date.to ? endOfDay(date.to) : endOfDay(date.from);
+        query = query.lte('created_at', toDate.toISOString());
+      }
+
+      if (selectedEmployee) {
+        query = query.eq('user_id', selectedEmployee);
+      }
+
+      if (selectedService) {
+        query = query.eq('service_id', parseInt(selectedService, 10));
+      }
+
+      const { data, error } = await query
+        .order('created_at', { ascending: false })
+        .limit(isInitialLoad ? 100 : 500);
+
+      if (error) throw error;
       
-      const logs = (logsData.data as OrderLog[]) || [];
-      setAllLogs(logs);
-      setFilteredLogs(logs); // Initially show all
-      setUsers(usersData.data || []);
-      setServices(servicesData.data || []);
+      setFilteredLogs((data as OrderLog[]) || []);
 
     } catch (error: any) {
-      toast({ title: "خطأ في جلب البيانات", description: error.message, variant: 'destructive' });
+      toast({ title: "خطأ في جلب التقرير", description: error.message, variant: 'destructive' });
+      setFilteredLogs([]);
     } finally {
-      setLoading(false);
+      if (!isInitialLoad) {
+        setIsFiltering(false);
+      }
     }
   };
 
   useEffect(() => {
-    fetchData();
+    const fetchInitialData = async () => {
+      setLoading(true);
+      try {
+        const [usersData, servicesData] = await Promise.all([
+          supabase.from('users').select('*').order('name'),
+          supabase.from('services').select('*').order('name'),
+        ]);
+
+        if (usersData.error) throw usersData.error;
+        if (servicesData.error) throw servicesData.error;
+        
+        setUsers(usersData.data || []);
+        setServices(servicesData.data || []);
+        
+        // Fetch initial report data
+        await handleApplyFilters(true);
+
+      } catch (error: any) {
+        toast({ title: "خطأ في جلب البيانات", description: error.message, variant: 'destructive' });
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchInitialData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   
-  const handleApplyFilters = () => {
-    let logs = [...allLogs];
-
-    // Filter by date range
-    if (date?.from) {
-      const interval = {
-        start: startOfDay(date.from),
-        end: date.to ? endOfDay(date.to) : endOfDay(date.from),
-      };
-      logs = logs.filter(log => log.created_at && isWithinInterval(new Date(log.created_at), interval));
-    }
-
-    // Filter by employee
-    if (selectedEmployee) {
-      logs = logs.filter(log => log.user_id === selectedEmployee);
-    }
-
-    // Filter by service
-    if (selectedService) {
-      logs = logs.filter(log => log.service_id.toString() === selectedService);
-    }
-
-    setFilteredLogs(logs);
-  };
   
   const summaryStats = useMemo(() => {
     const totalRevenue = filteredLogs.reduce((acc, log) => acc + (log.total ?? 0), 0);
@@ -256,7 +274,10 @@ export default function ReportsPage() {
                 ))}
               </SelectContent>
             </Select>
-             <Button onClick={handleApplyFilters} disabled={loading}>تطبيق الفلاتر</Button>
+             <Button onClick={() => handleApplyFilters()} disabled={isFiltering}>
+                {isFiltering && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+                تطبيق الفلاتر
+             </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -265,35 +286,46 @@ export default function ReportsPage() {
                 <Loader2 className="h-8 w-8 animate-spin" />
              </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>التاريخ</TableHead>
-                  <TableHead>الموظف</TableHead>
-                  <TableHead>الخدمة</TableHead>
-                  <TableHead>اسم العميل</TableHead>
-                  <TableHead>هاتف العميل</TableHead>
-                  <TableHead className="text-end">الإيرادات</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredLogs.length > 0 ? filteredLogs.map((log) => (
-                    <TableRow key={log.id}>
-                      <TableCell>{log.created_at ? format(new Date(log.created_at), 'PPP') : 'غير متوفر'}</TableCell>
-                      <TableCell className="font-medium">{log.users?.name || 'غير متوفر'}</TableCell>
-                      <TableCell>{log.services?.name || 'غير متوفر'}</TableCell>
-                      <TableCell>{log.clients?.name || 'غير متوفر'}</TableCell>
-                      <TableCell>{log.clients?.phone || 'غير متوفر'}</TableCell>
-                      <TableCell className="text-end">${(log.total ?? 0).toFixed(2)}</TableCell>
-                    </TableRow>
-                  )) : (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center h-24">لم يتم العثور على نتائج للفلاتر المحددة.</TableCell>
-                    </TableRow>
-                  )
-                }
-              </TableBody>
-            </Table>
+            <>
+              {filteredLogs.length === 500 && (
+                <Alert variant="default" className="mb-4 bg-amber-100 border-amber-300 text-amber-800">
+                    <AlertCircle className="h-4 w-4 !text-amber-800" />
+                    <AlertTitle>تم الوصول إلى الحد الأقصى للنتائج</AlertTitle>
+                    <AlertDescription>
+                        يتم عرض أحدث 500 سجل فقط. للحصول على نتائج أكثر دقة، يرجى استخدام الفلاتر لتضييق نطاق البحث.
+                    </AlertDescription>
+                </Alert>
+              )}
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>التاريخ</TableHead>
+                    <TableHead>الموظف</TableHead>
+                    <TableHead>الخدمة</TableHead>
+                    <TableHead>اسم العميل</TableHead>
+                    <TableHead>هاتف العميل</TableHead>
+                    <TableHead className="text-end">الإيرادات</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredLogs.length > 0 ? filteredLogs.map((log) => (
+                      <TableRow key={log.id}>
+                        <TableCell>{log.created_at ? format(new Date(log.created_at), 'PPP') : 'غير متوفر'}</TableCell>
+                        <TableCell className="font-medium">{log.users?.name || 'غير متوفر'}</TableCell>
+                        <TableCell>{log.services?.name || 'غير متوفر'}</TableCell>
+                        <TableCell>{log.clients?.name || 'غير متوفر'}</TableCell>
+                        <TableCell>{log.clients?.phone || 'غير متوفر'}</TableCell>
+                        <TableCell className="text-end">${(log.total ?? 0).toFixed(2)}</TableCell>
+                      </TableRow>
+                    )) : (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center h-24">لم يتم العثور على نتائج للفلاتر المحددة.</TableCell>
+                      </TableRow>
+                    )
+                  }
+                </TableBody>
+              </Table>
+            </>
           )}
         </CardContent>
       </Card>
