@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Clock, DollarSign, Users, Wrench } from "lucide-react";
 import { serviceLogs, services, users } from "@/lib/data";
 import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 
 function EmployeeDashboard() {
   const { user } = useAuth();
