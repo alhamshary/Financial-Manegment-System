@@ -43,8 +43,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       const currentUser = session?.user;
       if (currentUser) {
-        // Automatically start an attendance session. The RPC handles cases where a session is already active.
-        await supabase.rpc('auto_start_attendance', { user_id_param: currentUser.id });
+        try {
+            // Automatically start an attendance session. The RPC handles cases where a session is already active.
+            const { error: rpcError } = await supabase.rpc('auto_start_attendance', { user_id_param: currentUser.id });
+            if (rpcError) throw rpcError;
+        } catch (error: any) {
+            toast({
+                title: 'خطأ في بدء جلسة الحضور',
+                description: 'لم نتمكن من بدء جلسة الحضور الخاصة بك تلقائيًا. قد لا يتم تتبع وقتك بشكل صحيح.',
+                variant: 'destructive',
+            });
+        }
         
         // Fetch profile from public 'users' table
         const { data: profile } = await supabase
@@ -82,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [toast]);
 
   // Fetch active session when user is available
   useEffect(() => {
@@ -172,7 +181,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     if (user) {
-      await supabase.rpc('end_current_attendance', { user_id_param: user.id });
+        try {
+            const { error } = await supabase.rpc('end_current_attendance', { user_id_param: user.id });
+            if (error) throw error;
+        } catch (error: any) {
+             toast({
+                title: 'خطأ في إنهاء جلسة الحضور',
+                description: 'لم نتمكن من إيقاف جلسة الحضور الخاصة بك تلقائيًا. يرجى الاتصال بالدعم إذا استمرت المشكلة.',
+                variant: 'destructive',
+            });
+        }
     }
     await supabase.auth.signOut();
     // onAuthStateChange will handle cleanup and we redirect here
