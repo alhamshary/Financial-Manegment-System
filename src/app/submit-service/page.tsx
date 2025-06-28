@@ -152,7 +152,7 @@ export default function SubmitServicePage() {
             notes: values.notes || null,
         };
 
-        const { error: orderError } = await supabase.from('orders').insert(orderData);
+        const { error: orderError } = await supabase.from('orders').insert([orderData]);
 
         if (orderError) {
             throw orderError;
