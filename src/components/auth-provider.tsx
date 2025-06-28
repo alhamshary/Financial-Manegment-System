@@ -6,6 +6,8 @@ import { createContext, useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
+import { applyTheme } from '@/components/theme-provider';
+import type { Tables } from '@/lib/database.types';
 
 export type UserRole = 'admin' | 'manager' | 'employee';
 
@@ -16,11 +18,14 @@ export interface User {
   role: UserRole;
 }
 
+export type AppSettings = Tables<'app_settings'>;
+
 export interface AuthContextType {
   user: User | null;
   login: (email: string, pass:string) => Promise<boolean>;
   logout: () => void;
   loading: boolean;
+  settings: AppSettings | null;
   sessionDuration: string;
   isSessionLoading: boolean;
 }
@@ -34,16 +39,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { toast } = useToast();
 
-  // Session timer state
+  const [settings, setSettings] = useState<AppSettings | null>(null);
   const [sessionStartTime, setSessionStartTime] = useState<string | null>(null);
   const [sessionDuration, setSessionDuration] = useState('00:00:00');
   const [isSessionLoading, setIsSessionLoading] = useState(true);
-
-  // Database session state
   const [dbSessionId, setDbSessionId] = useState<number | null>(null);
 
-  // CRITICAL FIX: Ensure dbSessionId is tracked for any active session,
-  // not just on initial login. This allows logout logic to function after a page reload.
   useEffect(() => {
     if (user?.id) {
       const fetchActiveDbSession = async () => {
@@ -56,14 +57,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .limit(1)
           .single();
 
-        if (error && error.code !== 'PGRST116') { // Ignore "no rows found" error
+        if (error && error.code !== 'PGRST116') {
           console.error("Error fetching active DB session:", error);
         } else if (data) {
           setDbSessionId(data.id);
         }
       };
       
-      // Fetch only if dbSessionId is not already set to avoid redundant calls.
       if (!dbSessionId) {
         fetchActiveDbSession();
       }
@@ -114,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSessionStartTime(null);
         setDbSessionId(null);
       }
-      setLoading(false);
+      // Note: We keep loading true until settings are also fetched.
     });
     
     const getInitialSession = async () => {
@@ -130,6 +130,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       subscription.unsubscribe();
     };
   }, [toast]);
+
+  // Fetch and subscribe to app settings
+  useEffect(() => {
+    const fetchSettings = async () => {
+      const { data, error } = await supabase
+        .from('app_settings')
+        .select('office_title, app_theme')
+        .eq('id', true)
+        .single();
+      
+      if (error) {
+        console.error("Error fetching app settings:", error);
+        setSettings({ id: true, office_title: 'المكتب الرئيسي', app_theme: 'theme-default' });
+      } else if (data) {
+        setSettings(data as AppSettings);
+      }
+      setLoading(false); // End loading after user and settings are fetched
+    };
+
+    fetchSettings();
+
+    const channel = supabase
+      .channel('public:app_settings')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'app_settings', filter: 'id=eq.true' },
+        (payload) => {
+          setSettings(payload.new as AppSettings);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+  
+  // Apply theme when settings change
+  useEffect(() => {
+    if (settings?.app_theme) {
+      applyTheme(settings.app_theme);
+    }
+  }, [settings?.app_theme]);
 
   // Fetch active attendance session when user is available
   useEffect(() => {
@@ -218,7 +261,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
             const now = new Date();
 
-            // Manually find and update the active attendance record
             const { data: activeAttendance, error: findError } = await supabase
                 .from('attendance')
                 .select('id, check_in')
@@ -228,7 +270,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 .limit(1)
                 .single();
 
-            if (findError && findError.code !== 'PGRST116') { // Ignore "no rows found" error
+            if (findError && findError.code !== 'PGRST116') {
                 throw findError;
             }
 
@@ -249,7 +291,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 if (updateError) throw updateError;
             }
 
-            // Update sessions table (this part was already working)
             await supabase
                 .from('sessions')
                 .update({ logout_time: now.toISOString() })
@@ -268,7 +309,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push('/');
   };
 
-  const value = { user, login, logout, loading, sessionDuration, isSessionLoading };
+  const value = { user, login, logout, loading, settings, sessionDuration, isSessionLoading };
 
   return (
     <AuthContext.Provider value={value}>

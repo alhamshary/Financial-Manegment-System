@@ -41,6 +41,24 @@ export type Database = {
           },
         ]
       }
+      app_settings: {
+        Row: {
+          app_theme: string
+          id: boolean
+          office_title: string
+        }
+        Insert: {
+          app_theme?: string
+          id?: boolean
+          office_title?: string
+        }
+        Update: {
+          app_theme?: string
+          id?: boolean
+          office_title?: string
+        }
+        Relationships: []
+      }
       attendance: {
         Row: {
           check_in: string

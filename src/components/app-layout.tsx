@@ -14,7 +14,7 @@ import { MainNav } from "@/components/main-nav";
 import { UserNav } from "@/components/user-nav";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -22,9 +22,8 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
-  const { user, loading } = useAuth();
+  const { user, loading, settings } = useAuth();
   const router = useRouter();
-  const [officeTitle, setOfficeTitle] = useState("عنوان المكتب");
   
   useEffect(() => {
     if (!loading && !user) {
@@ -35,26 +34,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     }
   }, [user, loading, router, allowedRoles]);
 
-  useEffect(() => {
-    const savedTitle = localStorage.getItem('officeTitle');
-    if (savedTitle) {
-      setOfficeTitle(savedTitle);
-    } else {
-        setOfficeTitle("عنوان المكتب");
-    }
-
-    const handleStorageChange = () => {
-      const updatedTitle = localStorage.getItem('officeTitle');
-      setOfficeTitle(updatedTitle || "عنوان المكتب");
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-    };
-  }, []);
-
-  if (loading || !user || (allowedRoles && !allowedRoles.includes(user.role))) {
+  if (loading || !user || (allowedRoles && !allowedRoles.includes(user.role)) || !settings) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -78,7 +58,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
       <SidebarInset>
         <header className="flex h-14 items-center justify-between border-b bg-background/80 backdrop-blur-sm px-4 lg:px-6">
           <SidebarTrigger />
-          <h2 className="text-xl font-semibold">{officeTitle}</h2>
+          <h2 className="text-xl font-semibold">{settings.office_title}</h2>
           <UserNav />
         </header>
         <main className="flex-1 p-4 sm:p-6">{children}</main>

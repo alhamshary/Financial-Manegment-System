@@ -10,34 +10,58 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { applyTheme } from "@/components/theme-provider";
+import { useAuth } from "@/hooks/use-auth";
+import { supabase } from "@/lib/supabase";
+import { Loader2 } from "lucide-react";
 
 export default function SettingsPage() {
   const { toast } = useToast();
-  const [officeTitle, setOfficeTitle] = useState("المكتب الرئيسي");
-  const [theme, setTheme] = useState("theme-default");
-  const [isMounted, setIsMounted] = useState(false);
+  const { settings: globalSettings } = useAuth();
+
+  const [officeTitle, setOfficeTitle] = useState("");
+  const [theme, setTheme] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    const savedTitle = localStorage.getItem("officeTitle") || "المكتب الرئيسي";
-    const savedTheme = localStorage.getItem("appTheme") || "theme-default";
-    setOfficeTitle(savedTitle);
-    setTheme(savedTheme);
-    setIsMounted(true);
-  }, []);
+    if (globalSettings) {
+      setOfficeTitle(globalSettings.office_title);
+      setTheme(globalSettings.app_theme);
+      setIsLoading(false);
+    }
+  }, [globalSettings]);
 
-  const handleSave = () => {
-    localStorage.setItem("officeTitle", officeTitle);
-    localStorage.setItem("appTheme", theme);
-    applyTheme(theme);
-    toast({
-      title: "تم حفظ الإعدادات",
-      description: "تم حفظ تغييراتك بنجاح.",
-    });
+  const handleSave = async () => {
+    setIsSaving(true);
+    const { error } = await supabase
+      .from('app_settings')
+      .update({ office_title: officeTitle, app_theme: theme })
+      .eq('id', true);
+
+    if (error) {
+      toast({
+        title: "خطأ في حفظ الإعدادات",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      applyTheme(theme); // Apply theme immediately for visual feedback
+      toast({
+        title: "تم حفظ الإعدادات",
+        description: "تم حفظ تغييراتك بنجاح.",
+      });
+    }
+    setIsSaving(false);
   };
 
-  if (!isMounted) {
-    // Avoids hydration mismatch by not rendering on server
-    return null;
+  if (isLoading) {
+    return (
+      <AppLayout allowedRoles={['admin']}>
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      </AppLayout>
+    );
   }
 
   return (
@@ -129,7 +153,10 @@ export default function SettingsPage() {
           </div>
         </CardContent>
         <CardFooter className="border-t px-6 py-4">
-          <Button onClick={handleSave}>حفظ التغييرات</Button>
+          <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+            حفظ التغييرات
+          </Button>
         </CardFooter>
       </Card>
     </AppLayout>
