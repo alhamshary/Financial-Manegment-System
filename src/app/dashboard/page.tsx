@@ -1,7 +1,9 @@
 
-export const dynamic = 'force-dynamic';
+
 
 "use client";
+export const dynamic = 'force-dynamic';
+
 import { AppLayout } from "@/components/app-layout";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

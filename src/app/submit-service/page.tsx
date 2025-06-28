@@ -1,7 +1,7 @@
 
-export const dynamic = 'force-dynamic';
 
 "use client";
+export const dynamic = 'force-dynamic';
 
 import { AppLayout } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
