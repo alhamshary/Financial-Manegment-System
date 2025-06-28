@@ -1,9 +1,17 @@
 
 import type { Metadata } from 'next';
+import { Cairo } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/components/auth-provider';
 import { Toaster } from '@/components/ui/toaster';
 import { ThemeProvider } from '@/components/theme-provider';
+
+const cairo = Cairo({
+  subsets: ['arabic'],
+  display: 'swap',
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-cairo',
+});
 
 export const metadata: Metadata = {
   title: 'تطبيق شركة الهمشري',
@@ -17,12 +25,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap" rel="stylesheet" />
-      </head>
-      <body className="font-body antialiased">
+      <head />
+      <body className={`${cairo.variable} font-body antialiased`}>
         <ThemeProvider>
           <AuthProvider>
             {children}

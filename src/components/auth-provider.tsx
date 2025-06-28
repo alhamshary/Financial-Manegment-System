@@ -48,7 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const currentUser = session?.user;
       if (currentUser) {
         // This is a login or session refresh event
-        if (!user) { // Only run this block on initial login, not on every token refresh
+        if (event === 'SIGNED_IN') { // Only run this block on initial login, not on every token refresh
             try {
                 // 1. Start attendance session via RPC. This handles new logins and cleans up old sessions.
                 const { error: rpcError } = await supabase.rpc('auto_start_attendance', { user_id_param: currentUser.id });
@@ -116,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       subscription.unsubscribe();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toast, user]);
+  }, [toast]);
 
   // Fetch active session when user is available
   useEffect(() => {
@@ -236,11 +236,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={value}>
-      {loading ? (
-        <div className="flex h-screen w-full items-center justify-center">
-          <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-        </div>
-      ) : children}
+      {children}
     </AuthContext.Provider>
   );
 }
