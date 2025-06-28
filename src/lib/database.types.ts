@@ -1,3 +1,4 @@
+
 export type Json =
   | string
   | number
@@ -114,6 +115,38 @@ export type Database = {
           phone?: string | null
         }
         Relationships: []
+      }
+      expenses: {
+        Row: {
+          id: number
+          name: string
+          amount: number
+          user_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: number
+          name: string
+          amount: number
+          user_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: number
+          name?: string
+          amount?: number
+          user_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expenses_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       orders: {
         Row: {

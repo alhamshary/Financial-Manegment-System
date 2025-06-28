@@ -12,6 +12,7 @@ import {
   Cog,
   Icon,
   CalendarCheck,
+  CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/components/auth-provider";
@@ -26,6 +27,7 @@ type NavItem = {
 const navItems: NavItem[] = [
   { href: "/dashboard", label: "لوحة التحكم", icon: LayoutDashboard, roles: ["admin", "manager", "employee"] },
   { href: "/submit-service", label: "إرسال خدمة", icon: FilePlus2, roles: ["admin", "manager", "employee"] },
+  { href: "/expenses", label: "المصاريف", icon: CreditCard, roles: ["admin", "manager", "employee"] },
   { href: "/services", label: "الخدمات", icon: Wrench, roles: ["admin", "manager"] },
   { href: "/reports", label: "التقارير", icon: FileText, roles: ["admin", "manager"] },
   { href: "/attendance", label: "الحضور", icon: CalendarCheck, roles: ["admin", "manager"] },
