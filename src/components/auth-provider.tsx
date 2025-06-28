@@ -89,18 +89,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (event === 'SIGNED_IN') {
             try {
-                await supabase.rpc('auto_start_attendance', { user_id_param: currentUser.id });
-                const { data: sessionRecord, error: sessionError } = await supabase
-                    .from('sessions')
-                    .insert({
-                        user_id: currentUser.id,
-                        login_time: new Date().toISOString(),
-                        device_info: navigator.userAgent,
-                    })
-                    .select('id')
-                    .single();
-                if (sessionError) throw sessionError;
-                setDbSessionId(sessionRecord.id);
+                // Ensure this only runs on the client where navigator is available
+                if (typeof window !== 'undefined') {
+                    await supabase.rpc('auto_start_attendance', { user_id_param: currentUser.id });
+                    const { data: sessionRecord, error: sessionError } = await supabase
+                        .from('sessions')
+                        .insert({
+                            user_id: currentUser.id,
+                            login_time: new Date().toISOString(),
+                            device_info: navigator.userAgent,
+                        })
+                        .select('id')
+                        .single();
+                    if (sessionError) throw sessionError;
+                    setDbSessionId(sessionRecord.id);
+                }
             } catch (error: any) {
                 toast({
                     title: 'خطأ في بدء الجلسة',
