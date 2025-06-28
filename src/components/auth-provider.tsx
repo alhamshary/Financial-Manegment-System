@@ -216,11 +216,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     if (user && dbSessionId) {
         try {
-            await supabase.rpc('end_current_attendance', { user_id_param: user.id });
+            const now = new Date();
+
+            // Manually find and update the active attendance record
+            const { data: activeAttendance, error: findError } = await supabase
+                .from('attendance')
+                .select('id, check_in')
+                .eq('user_id', user.id)
+                .is('check_out', null)
+                .order('check_in', { ascending: false })
+                .limit(1)
+                .single();
+
+            if (findError && findError.code !== 'PGRST116') { // Ignore "no rows found" error
+                throw findError;
+            }
+
+            if (activeAttendance) {
+                const checkInTime = new Date(activeAttendance.check_in).getTime();
+                const nowTime = now.getTime();
+                const durationInMs = nowTime - checkInTime;
+                const durationInMinutes = Math.floor(durationInMs / (1000 * 60));
+
+                const { error: updateError } = await supabase
+                    .from('attendance')
+                    .update({
+                        check_out: now.toISOString(),
+                        session_duration: durationInMinutes,
+                    })
+                    .eq('id', activeAttendance.id);
+                
+                if (updateError) throw updateError;
+            }
+
+            // Update sessions table (this part was already working)
             await supabase
                 .from('sessions')
-                .update({ logout_time: new Date().toISOString() })
+                .update({ logout_time: now.toISOString() })
                 .eq('id', dbSessionId);
+
         } catch (error: any) {
              toast({
                 title: 'خطأ في إنهاء الجلسة',
@@ -230,6 +264,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     }
     await supabase.auth.signOut();
+    setUser(null);
     router.push('/');
   };
 
