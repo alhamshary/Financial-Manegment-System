@@ -140,12 +140,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq('id', true)
         .single();
       
-      if (error) {
+      if (error && error.code !== 'PGRST116') {
         console.error("Error fetching app settings:", error);
-        setSettings({ id: true, office_title: 'المكتب الرئيسي', app_theme: 'theme-default' });
-      } else if (data) {
-        setSettings(data as AppSettings);
       }
+      
+      if (data) {
+        setSettings(data as AppSettings);
+      } else {
+        setSettings({ id: true, office_title: 'المكتب الرئيسي', app_theme: 'theme-default' });
+      }
+
       setLoading(false); // End loading after user and settings are fetched
     };
 
