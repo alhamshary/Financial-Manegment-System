@@ -160,6 +160,7 @@ export type Database = {
           service_id: number
           total: number | null
           user_id: string
+          payment_method: "cash" | "wallet"
         }
         Insert: {
           client_id: number
@@ -172,6 +173,7 @@ export type Database = {
           service_id: number
           total?: number | null
           user_id: string
+          payment_method?: "cash" | "wallet"
         }
         Update: {
           client_id?: number
@@ -184,6 +186,7 @@ export type Database = {
           service_id?: number
           total?: number | null
           user_id?: string
+          payment_method?: "cash" | "wallet"
         }
         Relationships: [
           {
@@ -317,7 +320,7 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      payment_method_enum: "cash" | "wallet"
     }
     CompositeTypes: {
       [_ in never]: never

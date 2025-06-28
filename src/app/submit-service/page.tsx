@@ -19,6 +19,7 @@ import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
 import { useAuth } from "@/hooks/use-auth";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type Service = Tables<'services'>;
 
@@ -29,6 +30,9 @@ const formSchema = z.object({
   quantity: z.coerce.number().min(1, { message: "الكمية يجب أن تكون 1 على الأقل." }),
   discount: z.coerce.number().min(0).optional().default(0),
   notes: z.string().optional(),
+  paymentMethod: z.enum(["cash", "wallet"], {
+    required_error: "الرجاء تحديد طريقة الدفع.",
+  }),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -53,6 +57,7 @@ export default function SubmitServicePage() {
       quantity: 1,
       discount: 0,
       notes: "",
+      paymentMethod: "cash",
     },
   });
   
@@ -150,6 +155,7 @@ export default function SubmitServicePage() {
             discount: values.discount,
             total: finalPrice,
             notes: values.notes || null,
+            payment_method: values.paymentMethod,
         };
 
         const { error: orderError } = await supabase.from('orders').insert([orderData]);
@@ -330,6 +336,28 @@ export default function SubmitServicePage() {
                       <FormControl>
                         <Input type="number" {...field} />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="paymentMethod"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>طريقة الدفع</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="اختر طريقة الدفع" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="cash">كاش</SelectItem>
+                          <SelectItem value="wallet">محفظة</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}

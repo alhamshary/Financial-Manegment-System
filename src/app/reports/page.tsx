@@ -27,6 +27,7 @@ type OrderLog = {
   total: number | null;
   user_id: string;
   service_id: number;
+  payment_method: 'cash' | 'wallet';
   users: { name: string; role: string; } | null;
   services: { name: string; } | null;
   clients: { name: string; phone: string | null; } | null;
@@ -58,7 +59,7 @@ export default function ReportsPage() {
       // Setup orders query
       let ordersQuery = supabase
         .from('orders')
-        .select('id, created_at, total, user_id, service_id, users(name, role), services(name), clients(name, phone)');
+        .select('id, created_at, total, user_id, service_id, payment_method, users(name, role), services(name), clients(name, phone)');
 
       // Setup expenses query
       let expensesQuery = supabase.from('expenses').select('amount');
@@ -143,15 +144,16 @@ export default function ReportsPage() {
   }, [filteredLogs, filteredExpenses]);
 
   const exportToCsv = () => {
-    const headers = "Date,Employee,Service,Client Name,Client Phone,Revenue\n";
+    const headers = "Date,Employee,Service,Client Name,Client Phone,Payment Method,Revenue\n";
     const rows = filteredLogs.map(log => {
       const logDate = log.created_at ? format(new Date(log.created_at), "yyyy-MM-dd") : "N/A";
       const employee = log.users?.name || "N/A";
       const service = log.services?.name || "N/A";
       const client = log.clients?.name || "N/A";
       const clientPhone = log.clients?.phone || "N/A";
+      const paymentMethod = log.payment_method === 'cash' ? 'Cash' : 'Wallet';
       const revenue = (log.total ?? 0).toFixed(2);
-      return `${logDate},"${employee}","${service}","${client}",${clientPhone},${revenue}`;
+      return `${logDate},"${employee}","${service}","${client}",${clientPhone},${paymentMethod},${revenue}`;
     }).join("\n");
 
     const blob = new Blob([headers + rows], { type: "text/csv;charset=utf-8;" });
@@ -163,6 +165,11 @@ export default function ReportsPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+  
+  const paymentMethodLabels = {
+    cash: 'كاش',
+    wallet: 'محفظة'
   };
 
   return (
@@ -311,6 +318,7 @@ export default function ReportsPage() {
                     <TableHead>الخدمة</TableHead>
                     <TableHead>اسم العميل</TableHead>
                     <TableHead>هاتف العميل</TableHead>
+                    <TableHead>طريقة الدفع</TableHead>
                     <TableHead className="text-end">الإيرادات</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -322,11 +330,12 @@ export default function ReportsPage() {
                         <TableCell>{log.services?.name || 'غير متوفر'}</TableCell>
                         <TableCell>{log.clients?.name || 'غير متوفر'}</TableCell>
                         <TableCell>{log.clients?.phone || 'غير متوفر'}</TableCell>
+                        <TableCell>{paymentMethodLabels[log.payment_method]}</TableCell>
                         <TableCell className="text-end">${(log.total ?? 0).toFixed(2)}</TableCell>
                       </TableRow>
                     )) : (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center h-24">لم يتم العثور على نتائج للفلاتر المحددة.</TableCell>
+                        <TableCell colSpan={7} className="text-center h-24">لم يتم العثور على نتائج للفلاتر المحددة.</TableCell>
                       </TableRow>
                     )
                   }

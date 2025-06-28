@@ -22,6 +22,7 @@ type EmployeeServiceLog = {
 type AdminServiceLog = {
   id: number;
   total: number | null;
+  payment_method: 'cash' | 'wallet';
   users: Pick<Tables<'users'>, 'name'> | null;
   services: Pick<Tables<'services'>, 'name'> | null;
   clients: Pick<Tables<'clients'>, 'name'> | null;
@@ -254,7 +255,7 @@ function AdminManagerDashboard() {
       const [ordersRes, totalUsersRes, todaysAttendanceRes, expensesRes] = await Promise.all([
         supabase
           .from('orders')
-          .select('id, total, users(name), services(name), clients(name)')
+          .select('id, total, payment_method, users(name), services(name), clients(name)')
           .gte('created_at', todayStart)
           .lte('created_at', todayEnd)
           .order('created_at', { ascending: false }),
@@ -356,6 +357,11 @@ function AdminManagerDashboard() {
     };
   }, [dataFetchedForDate, fetchAdminData]);
 
+  const paymentMethodLabels = {
+    cash: 'كاش',
+    wallet: 'محفظة'
+  };
+
   return (
     <div className="grid gap-6">
        <SessionTimerCard />
@@ -432,24 +438,26 @@ function AdminManagerDashboard() {
                 <TableHead>الموظف</TableHead>
                 <TableHead>الخدمة</TableHead>
                 <TableHead>العميل</TableHead>
+                <TableHead>طريقة الدفع</TableHead>
                 <TableHead className="text-end">المبلغ</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={4} className="text-center h-24"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center h-24"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
               ) : logs.length > 0 ? logs.map(log => {
                 return (
                   <TableRow key={log.id}>
                     <TableCell>{log.users?.name || 'غير متوفر'}</TableCell>
                     <TableCell><Badge variant="outline">{log.services?.name || 'غير متوفر'}</Badge></TableCell>
                     <TableCell>{log.clients?.name || 'غير متوفر'}</TableCell>
+                    <TableCell>{paymentMethodLabels[log.payment_method]}</TableCell>
                     <TableCell className="text-end">${(log.total ?? 0).toFixed(2)}</TableCell>
                   </TableRow>
                 )
               }) : (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center">لم يتم تقديم أي خدمات اليوم.</TableCell>
+                  <TableCell colSpan={5} className="text-center">لم يتم تقديم أي خدمات اليوم.</TableCell>
                 </TableRow>
               )}
             </TableBody>
