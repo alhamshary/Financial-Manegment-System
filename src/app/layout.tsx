@@ -1,6 +1,7 @@
 
 import type { Metadata } from 'next';
 import { Cairo } from 'next/font/google';
+import { Head } from 'next/document';
 import './globals.css';
 import { AuthProvider } from '@/components/auth-provider';
 import { Toaster } from '@/components/ui/toaster';
@@ -15,6 +16,8 @@ const cairo = Cairo({
 export const metadata: Metadata = {
   title: 'تطبيق شركة الهمشري',
   description: 'تطبيق إدارة الخدمات',
+  keywords: 'الهمشري, إدارة, خدمات, تطبيق',
+  viewport: 'width=device-width, initial-scale=1',
 };
 
 export default function RootLayout({
@@ -24,7 +27,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
-      <head />
+      <Head>
+        <title>تطبيق شركة الهمشري</title>
+        <meta name="description" content="تطبيق إدارة الخدمات" />
+      </Head>
       <body className={`${cairo.variable} font-body antialiased`}>
         <AuthProvider>
           {children}

@@ -1,4 +1,6 @@
 
+export const dynamic = 'force-dynamic';
+
 "use client";
 import { LoginForm } from "@/components/login-form";
 import { useAuth } from "@/hooks/use-auth";
