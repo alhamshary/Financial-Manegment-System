@@ -11,7 +11,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { format, startOfDay, endOfDay, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
@@ -41,6 +41,7 @@ export default function AttendancePage() {
   const [rawLogs, setRawLogs] = useState<AttendanceLog[]>([]);
   const [aggregatedData, setAggregatedData] = useState<AggregatedAttendance[]>([]);
   const [users, setUsers] = useState<Tables<'users'>[]>([]);
+  const [dataFetchedForDate, setDataFetchedForDate] = useState<string | null>(null);
 
   // Filter state - default to last 30 days
   const [date, setDate] = useState<DateRange | undefined>({
@@ -49,12 +50,52 @@ export default function AttendancePage() {
   });
   const [selectedUser, setSelectedUser] = useState<string>('');
   
-  // Set isMounted to true after initial render to avoid hydration errors
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // Fetch filter options and initial data
+  const handleApplyFilters = useCallback(async (isInitialLoad = false) => {
+    const today = new Date().toISOString().split('T')[0];
+
+    if (isInitialLoad || (dataFetchedForDate && dataFetchedForDate !== today)) {
+        setLoading(true);
+    } else {
+        setIsFiltering(true);
+    }
+
+    try {
+      let query = supabase.from('attendance')
+        .select('*, users(name)')
+        .not('session_duration', 'is', null);
+
+      if (date?.from) {
+        query = query.gte('work_date', format(startOfDay(date.from), 'yyyy-MM-dd'));
+        const toDate = date.to ? endOfDay(date.to) : endOfDay(date.from);
+        query = query.lte('work_date', format(toDate, 'yyyy-MM-dd'));
+      } else {
+         query = query.gte('work_date', format(subDays(new Date(), 30), 'yyyy-MM-dd'));
+      }
+
+      if (selectedUser) {
+        query = query.eq('user_id', selectedUser);
+      }
+
+      const { data, error } = await query
+        .order('work_date', { ascending: false })
+        .limit(1000);
+
+      if (error) throw error;
+      setRawLogs((data as AttendanceLog[]) || []);
+      setDataFetchedForDate(today);
+
+    } catch (error: any) {
+      toast({ title: "خطأ في تطبيق الفلاتر", description: error.message, variant: 'destructive' });
+    } finally {
+      setIsFiltering(false);
+      setLoading(false);
+    }
+  }, [date, selectedUser, toast, dataFetchedForDate]);
+
   useEffect(() => {
     const fetchInitialData = async () => {
       setLoading(true);
@@ -67,20 +108,50 @@ export default function AttendancePage() {
         
         setUsers(usersData.data || []);
         
-        // Trigger initial report fetch
         await handleApplyFilters(true);
 
       } catch (error: any) {
         toast({ title: "خطأ في جلب البيانات الأولية", description: error.message, variant: 'destructive' });
-      } finally {
-        setLoading(false);
       }
     };
-    fetchInitialData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (isMounted) {
+      fetchInitialData();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMounted]);
 
-  // Memoize the aggregation logic to run when rawLogs change
+  // Real-time subscription for attendance changes
+  useEffect(() => {
+    const channel = supabase
+      .channel('attendance-page-updates')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'attendance' },
+        () => handleApplyFilters()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [handleApplyFilters]);
+
+  // Handle re-fetching data when tab becomes visible again
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        const today = new Date().toISOString().split('T')[0];
+        if (dataFetchedForDate && dataFetchedForDate !== today) {
+          handleApplyFilters();
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [dataFetchedForDate, handleApplyFilters]);
+  
   useEffect(() => {
     const dailyTotals: { [key: string]: AggregatedAttendance } = {};
     
@@ -102,43 +173,6 @@ export default function AttendancePage() {
     setAggregatedData(sortedData);
   }, [rawLogs]);
   
-  const handleApplyFilters = async (isInitialLoad = false) => {
-    if (!isInitialLoad) {
-      setIsFiltering(true);
-    }
-    try {
-      let query = supabase.from('attendance')
-        .select('*, users(name)')
-        .not('session_duration', 'is', null);
-
-      // Filter by date range
-      if (date?.from) {
-        query = query.gte('work_date', format(startOfDay(date.from), 'yyyy-MM-dd'));
-        const toDate = date.to ? endOfDay(date.to) : endOfDay(date.from);
-        query = query.lte('work_date', format(toDate, 'yyyy-MM-dd'));
-      } else { // If no date, fetch last 30 days by default to avoid loading all data
-         query = query.gte('work_date', format(subDays(new Date(), 30), 'yyyy-MM-dd'));
-      }
-
-      // Filter by employee
-      if (selectedUser) {
-        query = query.eq('user_id', selectedUser);
-      }
-
-      const { data, error } = await query
-        .order('work_date', { ascending: false })
-        .limit(1000);
-
-      if (error) throw error;
-      setRawLogs((data as AttendanceLog[]) || []);
-
-    } catch (error: any) {
-      toast({ title: "خطأ في تطبيق الفلاتر", description: error.message, variant: 'destructive' });
-    } finally {
-      setIsFiltering(false);
-    }
-  };
-
   const exportToCsv = () => {
     const headers = "Date,Employee,Total Hours Worked\n";
     const rows = aggregatedData.map(log => {
@@ -165,7 +199,6 @@ export default function AttendancePage() {
     return `${hours} س ${mins} د`;
   }
 
-  // Prevent rendering on the server to avoid hydration errors
   if (!isMounted) {
     return (
       <AppLayout allowedRoles={['admin', 'manager']}>
@@ -185,7 +218,7 @@ export default function AttendancePage() {
             عرض وتصدير سجلات حضور الموظفين.
           </p>
         </div>
-        <Button onClick={exportToCsv} disabled={loading || aggregatedData.length === 0}>
+        <Button onClick={exportToCsv} disabled={aggregatedData.length === 0}>
           <Download />
           تصدير كـ CSV
         </Button>
@@ -238,8 +271,8 @@ export default function AttendancePage() {
                 ))}
               </SelectContent>
             </Select>
-             <Button onClick={() => handleApplyFilters()} disabled={isFiltering}>
-                {isFiltering && <Loader2 className="h-4 w-4 animate-spin" />}
+             <Button onClick={() => handleApplyFilters()} disabled={isFiltering || loading}>
+                {(isFiltering || loading) && <Loader2 className="h-4 w-4 animate-spin" />}
                 تطبيق الفلاتر
              </Button>
           </div>
