@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Clock, DollarSign, Users, Wrench, Loader2 } from "lucide-react";
+import { Clock, DollarSign, Users, Wrench, Loader2, ShoppingBag, Wallet } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
@@ -52,7 +52,8 @@ function EmployeeDashboard() {
   const { toast } = useToast();
   
   const [servicesToday, setServicesToday] = useState<EmployeeServiceLog[]>([]);
-  const [loadingServices, setLoadingServices] = useState(true);
+  const [stats, setStats] = useState({ totalRevenue: 0, totalExpenses: 0 });
+  const [loading, setLoading] = useState(true);
   const [dataFetchedForDate, setDataFetchedForDate] = useState<string | null>(null);
 
   const fetchEmployeeData = useCallback(async () => {
@@ -62,27 +63,44 @@ function EmployeeDashboard() {
     const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
     if (dataFetchedForDate !== todayIso) {
-      setLoadingServices(true);
+      setLoading(true);
     }
 
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString();
     const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).toISOString();
 
-    const { data: servicesData, error: servicesError } = await supabase
-      .from('orders')
-      .select('id, total, services(name), clients(name)')
-      .eq('user_id', user.id)
-      .gte('created_at', todayStart)
-      .lte('created_at', todayEnd)
-      .order('created_at', { ascending: false });
-    
-    if (servicesError) {
-      toast({ title: "خطأ في جلب الخدمات", description: servicesError.message, variant: 'destructive' });
-    } else {
-      setServicesToday((servicesData as EmployeeServiceLog[]) || []);
+    try {
+      const [servicesRes, expensesRes] = await Promise.all([
+        supabase
+          .from('orders')
+          .select('id, total, services(name), clients(name)')
+          .eq('user_id', user.id)
+          .gte('created_at', todayStart)
+          .lte('created_at', todayEnd)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('expenses')
+          .select('amount')
+          .eq('user_id', user.id)
+          .gte('created_at', todayStart)
+          .lte('created_at', todayEnd)
+      ]);
+
+      if (servicesRes.error) throw servicesRes.error;
+      if (expensesRes.error) throw expensesRes.error;
+
+      const servicesData = (servicesRes.data as EmployeeServiceLog[]) || [];
+      const totalRevenue = servicesData.reduce((acc, log) => acc + (log.total ?? 0), 0);
+      const totalExpenses = (expensesRes.data || []).reduce((sum, expense) => sum + expense.amount, 0);
+
+      setServicesToday(servicesData);
+      setStats({ totalRevenue, totalExpenses });
       setDataFetchedForDate(todayIso);
+    } catch (error: any) {
+        toast({ title: "خطأ في جلب بيانات لوحة التحكم", description: error.message, variant: 'destructive' });
+    } finally {
+        setLoading(false);
     }
-    setLoadingServices(false);
   }, [user, toast, dataFetchedForDate]);
   
   useEffect(() => {
@@ -93,17 +111,27 @@ function EmployeeDashboard() {
 
   useEffect(() => {
     if (!user) return;
-    const channel = supabase
-      .channel(`employee-dashboard-${user.id}`)
+    const ordersChannel = supabase
+      .channel(`employee-dashboard-orders-${user.id}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'orders', filter: `user_id=eq.${user.id}` },
         () => fetchEmployeeData()
       )
       .subscribe();
+      
+    const expensesChannel = supabase
+      .channel(`employee-dashboard-expenses-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'expenses', filter: `user_id=eq.${user.id}` },
+        () => fetchEmployeeData()
+      )
+      .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(ordersChannel);
+      supabase.removeChannel(expensesChannel);
     };
   }, [user, fetchEmployeeData]);
 
@@ -123,10 +151,41 @@ function EmployeeDashboard() {
     };
   }, [dataFetchedForDate, fetchEmployeeData]);
 
+  const netAmount = stats.totalRevenue - stats.totalExpenses;
 
   return (
     <div className="grid gap-6">
-      <SessionTimerCard />
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <SessionTimerCard />
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">إجمالي إيراداتك اليوم</CardTitle>
+                    <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : <div className="text-2xl font-bold">${stats.totalRevenue.toFixed(2)}</div>}
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">إجمالي مصاريفك اليوم</CardTitle>
+                    <ShoppingBag className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : <div className="text-2xl font-bold text-destructive">${stats.totalExpenses.toFixed(2)}</div>}
+                </CardContent>
+            </Card>
+             <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">صافي المبلغ</CardTitle>
+                    <Wallet className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : <div className={`text-2xl font-bold ${netAmount >= 0 ? 'text-primary' : 'text-destructive'}`}>${netAmount.toFixed(2)}</div>}
+                </CardContent>
+            </Card>
+        </div>
+
       <Card>
         <CardHeader>
           <CardTitle>خدماتك اليوم</CardTitle>
@@ -141,7 +200,7 @@ function EmployeeDashboard() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loadingServices ? (
+              {loading ? (
                  <TableRow><TableCell colSpan={3} className="text-center h-24"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
               ) : servicesToday.length > 0 ? servicesToday.map(log => {
                 return (
@@ -172,6 +231,8 @@ function AdminManagerDashboard() {
     activeEmployees: 0,
     totalEmployees: 0,
     avgWorkHours: 0,
+    totalExpenses: 0,
+    netRevenue: 0,
   });
   const [logs, setLogs] = useState<AdminServiceLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -190,7 +251,7 @@ function AdminManagerDashboard() {
     const utcTodayIso = new Date().toISOString().split('T')[0];
 
     try {
-      const [ordersRes, totalUsersRes, todaysAttendanceRes] = await Promise.all([
+      const [ordersRes, totalUsersRes, todaysAttendanceRes, expensesRes] = await Promise.all([
         supabase
           .from('orders')
           .select('id, total, users(name), services(name), clients(name)')
@@ -203,18 +264,26 @@ function AdminManagerDashboard() {
         supabase
           .from('attendance')
           .select('user_id, session_duration')
-          .eq('work_date', utcTodayIso)
+          .eq('work_date', utcTodayIso),
+        supabase
+          .from('expenses')
+          .select('amount')
+          .gte('created_at', todayStart)
+          .lte('created_at', todayEnd)
       ]);
 
       if (ordersRes.error) throw ordersRes.error;
       if (totalUsersRes.error) throw totalUsersRes.error;
       if (todaysAttendanceRes.error) throw todaysAttendanceRes.error;
+      if (expensesRes.error) throw expensesRes.error;
 
       const ordersData = (ordersRes.data as AdminServiceLog[]) || [];
       setLogs(ordersData);
       setDataFetchedForDate(localTodayIso);
       
       const totalRevenue = ordersData.reduce((acc: number, log: any) => acc + (log.total || 0), 0);
+      const totalExpenses = (expensesRes.data || []).reduce((sum, exp) => sum + exp.amount, 0);
+      const netRevenue = totalRevenue - totalExpenses;
       const servicesSold = ordersData.length;
       const todaysAttendanceData = todaysAttendanceRes.data || [];
       const activeEmployees = new Set(todaysAttendanceData.map(a => a.user_id)).size;
@@ -229,7 +298,9 @@ function AdminManagerDashboard() {
         servicesSold,
         activeEmployees,
         totalEmployees,
-        avgWorkHours
+        avgWorkHours,
+        totalExpenses,
+        netRevenue
       });
 
     } catch (error: any) {
@@ -244,17 +315,28 @@ function AdminManagerDashboard() {
   }, [fetchAdminData]);
 
   useEffect(() => {
-    const channel = supabase
-      .channel('admin-dashboard')
+    const ordersChannel = supabase
+      .channel('admin-dashboard-orders')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'orders' },
         () => fetchAdminData()
       )
       .subscribe();
+    
+    const expensesChannel = supabase
+      .channel('admin-dashboard-expenses')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'expenses' },
+        () => fetchAdminData()
+      )
+      .subscribe();
+
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(ordersChannel);
+      supabase.removeChannel(expensesChannel);
     };
   }, [fetchAdminData]);
 
@@ -277,7 +359,7 @@ function AdminManagerDashboard() {
   return (
     <div className="grid gap-6">
        <SessionTimerCard />
-       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">إجمالي الإيرادات اليوم</CardTitle>
@@ -286,6 +368,26 @@ function AdminManagerDashboard() {
           <CardContent>
             {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : <div className="text-2xl font-bold">${stats.totalRevenue.toFixed(2)}</div>}
             <p className="text-xs text-muted-foreground">بناءً على سجلات اليوم</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">إجمالي المصاريف اليوم</CardTitle>
+            <ShoppingBag className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : <div className="text-2xl font-bold text-destructive">${stats.totalExpenses.toFixed(2)}</div>}
+            <p className="text-xs text-muted-foreground">بناءً على سجلات اليوم</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">صافي الربح اليوم</CardTitle>
+            <Wallet className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : <div className={`text-2xl font-bold ${stats.netRevenue >= 0 ? 'text-primary' : 'text-destructive'}`}>${stats.netRevenue.toFixed(2)}</div>}
+            <p className="text-xs text-muted-foreground">الإيرادات - المصاريف</p>
           </CardContent>
         </Card>
         <Card>
