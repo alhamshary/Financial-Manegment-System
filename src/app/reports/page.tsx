@@ -5,7 +5,7 @@ import { AppLayout } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Download, DollarSign, Wrench, Users as UsersIcon, Loader2, AlertCircle } from "lucide-react";
+import { Download, DollarSign, Wrench, ShoppingBag, Wallet, Loader2, AlertCircle } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Calendar as CalendarIcon } from "lucide-react";
@@ -31,6 +31,7 @@ type OrderLog = {
   services: { name: string; } | null;
   clients: { name: string; phone: string | null; } | null;
 };
+type ExpenseLog = Pick<Tables<'expenses'>, 'amount'>;
 
 
 export default function ReportsPage() {
@@ -40,6 +41,7 @@ export default function ReportsPage() {
   
   // Data state
   const [filteredLogs, setFilteredLogs] = useState<OrderLog[]>([]);
+  const [filteredExpenses, setFilteredExpenses] = useState<ExpenseLog[]>([]);
   const [users, setUsers] = useState<Tables<'users'>[]>([]);
   const [services, setServices] = useState<Tables<'services'>[]>([]);
 
@@ -53,36 +55,47 @@ export default function ReportsPage() {
       setIsFiltering(true);
     }
     try {
-      let query = supabase
+      // Setup orders query
+      let ordersQuery = supabase
         .from('orders')
         .select('id, created_at, total, user_id, service_id, users(name, role), services(name), clients(name, phone)');
 
-      // Apply filters to the query
-      if (date?.from) {
-        query = query.gte('created_at', startOfDay(date.from).toISOString());
-        const toDate = date.to ? endOfDay(date.to) : endOfDay(date.from);
-        query = query.lte('created_at', toDate.toISOString());
-      }
-
-      if (selectedEmployee) {
-        query = query.eq('user_id', selectedEmployee);
-      }
-
-      if (selectedService) {
-        query = query.eq('service_id', parseInt(selectedService, 10));
-      }
-
-      const { data, error } = await query
-        .order('created_at', { ascending: false })
-        .limit(isInitialLoad ? 100 : 500);
-
-      if (error) throw error;
+      // Setup expenses query
+      let expensesQuery = supabase.from('expenses').select('amount');
       
-      setFilteredLogs((data as OrderLog[]) || []);
+      // Apply common filters
+      if (date?.from) {
+        const fromDate = startOfDay(date.from).toISOString();
+        const toDate = date.to ? endOfDay(date.to).toISOString() : endOfDay(date.from).toISOString();
+        ordersQuery = ordersQuery.gte('created_at', fromDate).lte('created_at', toDate);
+        expensesQuery = expensesQuery.gte('created_at', fromDate).lte('created_at', toDate);
+      }
+      if (selectedEmployee) {
+        ordersQuery = ordersQuery.eq('user_id', selectedEmployee);
+        expensesQuery = expensesQuery.eq('user_id', selectedEmployee);
+      }
+      
+      // Apply service-specific filter to orders
+      if (selectedService) {
+        ordersQuery = ordersQuery.eq('service_id', parseInt(selectedService, 10));
+      }
+      
+      // Execute queries in parallel
+      const [ordersResult, expensesResult] = await Promise.all([
+        ordersQuery.order('created_at', { ascending: false }).limit(isInitialLoad ? 100 : 500),
+        expensesQuery
+      ]);
+
+      if (ordersResult.error) throw ordersResult.error;
+      if (expensesResult.error) throw expensesResult.error;
+      
+      setFilteredLogs((ordersResult.data as OrderLog[]) || []);
+      setFilteredExpenses((expensesResult.data as ExpenseLog[]) || []);
 
     } catch (error: any) {
       toast({ title: "خطأ في جلب التقرير", description: error.message, variant: 'destructive' });
       setFilteredLogs([]);
+      setFilteredExpenses([]);
     } finally {
       if (!isInitialLoad) {
         setIsFiltering(false);
@@ -123,17 +136,11 @@ export default function ReportsPage() {
   const summaryStats = useMemo(() => {
     const totalRevenue = filteredLogs.reduce((acc, log) => acc + (log.total ?? 0), 0);
     const totalServices = filteredLogs.length;
-    
-    const servicesByRole = filteredLogs.reduce((acc, log) => {
-        if(log.users?.role) {
-            const role = log.users.role;
-            acc[role] = (acc[role] || 0) + 1;
-        }
-        return acc;
-    }, {} as Record<string, number>);
+    const totalExpenses = filteredExpenses.reduce((acc, expense) => acc + (expense.amount ?? 0), 0);
+    const netRevenue = totalRevenue - totalExpenses;
 
-    return { totalRevenue, totalServices, servicesByRole };
-  }, [filteredLogs]);
+    return { totalRevenue, totalServices, totalExpenses, netRevenue };
+  }, [filteredLogs, filteredExpenses]);
 
   const exportToCsv = () => {
     const headers = "Date,Employee,Service,Client Name,Client Phone,Revenue\n";
@@ -186,32 +193,32 @@ export default function ReportsPage() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">إجمالي المصاريف</CardTitle>
+            <ShoppingBag className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-destructive">${summaryStats.totalExpenses.toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground">بناءً على الفلاتر الحالية</p>
+          </CardContent>
+        </Card>
+         <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">صافي الربح</CardTitle>
+            <Wallet className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${summaryStats.netRevenue >= 0 ? 'text-primary' : 'text-destructive'}`}>${summaryStats.netRevenue.toFixed(2)}</div>
+             <p className="text-xs text-muted-foreground">الإيرادات - المصاريف</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">إجمالي الخدمات</CardTitle>
             <Wrench className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">+{summaryStats.totalServices}</div>
              <p className="text-xs text-muted-foreground">بناءً على الفلاتر الحالية</p>
-          </CardContent>
-        </Card>
-         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">خدمات الموظفين</CardTitle>
-            <UsersIcon className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{summaryStats.servicesByRole['employee'] || 0}</div>
-             <p className="text-xs text-muted-foreground">أكملها الموظفون</p>
-          </CardContent>
-        </Card>
-         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">خدمات الإدارة</CardTitle>
-            <UsersIcon className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{(summaryStats.servicesByRole['admin'] || 0) + (summaryStats.servicesByRole['manager'] || 0)}</div>
-             <p className="text-xs text-muted-foreground">المديرون والمشرفون</p>
           </CardContent>
         </Card>
       </div>
