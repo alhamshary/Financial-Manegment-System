@@ -120,7 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Fetch active session when user is available
   useEffect(() => {
-    if (!user) {
+    if (!user?.id) {
         setSessionStartTime(null);
         setIsSessionLoading(false);
         return;
@@ -148,7 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     fetchActiveSession();
-  }, [user, toast]);
+  }, [user?.id, toast]);
   
   // Run timer interval
   useEffect(() => {
