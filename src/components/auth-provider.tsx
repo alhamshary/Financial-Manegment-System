@@ -42,42 +42,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Database session state
   const [dbSessionId, setDbSessionId] = useState<number | null>(null);
 
+  // CRITICAL FIX: Ensure dbSessionId is tracked for any active session,
+  // not just on initial login. This allows logout logic to function after a page reload.
+  useEffect(() => {
+    if (user?.id) {
+      const fetchActiveDbSession = async () => {
+        const { data, error } = await supabase
+          .from('sessions')
+          .select('id')
+          .eq('user_id', user.id)
+          .is('logout_time', null)
+          .order('login_time', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (error && error.code !== 'PGRST116') { // Ignore "no rows found" error
+          console.error("Error fetching active DB session:", error);
+        } else if (data) {
+          setDbSessionId(data.id);
+        }
+      };
+      
+      // Fetch only if dbSessionId is not already set to avoid redundant calls.
+      if (!dbSessionId) {
+        fetchActiveDbSession();
+      }
+    }
+  }, [user, dbSessionId]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       const currentUser = session?.user;
       if (currentUser) {
-        // This is a login or session refresh event
-        if (event === 'SIGNED_IN') { // Only run this block on initial login, not on every token refresh
-            try {
-                // 1. Start attendance session via RPC. This handles new logins and cleans up old sessions.
-                const { error: rpcError } = await supabase.rpc('auto_start_attendance', { user_id_param: currentUser.id });
-                if (rpcError) throw rpcError;
-
-                // 2. Start a new session in the 'sessions' table
-                const { data: sessionRecord, error: sessionError } = await supabase
-                    .from('sessions')
-                    .insert({
-                        user_id: currentUser.id,
-                        login_time: new Date().toISOString(),
-                        device_info: navigator.userAgent,
-                    })
-                    .select('id')
-                    .single();
-                
-                if (sessionError) throw sessionError;
-                setDbSessionId(sessionRecord.id);
-
-            } catch (error: any) {
-                toast({
-                    title: 'خطأ في بدء الجلسة',
-                    description: `لم نتمكن من تسجيل جلسة الحضور أو الدخول بشكل صحيح: ${error.message}`,
-                    variant: 'destructive',
-                });
-            }
-        }
-        
-        // 3. Fetch user profile
         const { data: profile } = await supabase
           .from('users')
           .select('name, role')
@@ -87,21 +83,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser({
           id: currentUser.id,
           email: currentUser.email!,
-          // Fallback to email if name/role not in profile yet
           name: profile?.name || currentUser.email!,
           role: (profile?.role as UserRole) || 'employee',
         });
-
+        
+        if (event === 'SIGNED_IN') {
+            try {
+                await supabase.rpc('auto_start_attendance', { user_id_param: currentUser.id });
+                const { data: sessionRecord, error: sessionError } = await supabase
+                    .from('sessions')
+                    .insert({
+                        user_id: currentUser.id,
+                        login_time: new Date().toISOString(),
+                        device_info: navigator.userAgent,
+                    })
+                    .select('id')
+                    .single();
+                if (sessionError) throw sessionError;
+                setDbSessionId(sessionRecord.id);
+            } catch (error: any) {
+                toast({
+                    title: 'خطأ في بدء الجلسة',
+                    description: `لم نتمكن من تسجيل جلسة الحضور أو الدخول بشكل صحيح: ${error.message}`,
+                    variant: 'destructive',
+                });
+            }
+        }
       } else {
-        // This is a logout event, clear all local state
         setUser(null);
-        setSessionStartTime(null); // Clear timer
-        setDbSessionId(null); // Clear db session id
+        setSessionStartTime(null);
+        setDbSessionId(null);
       }
       setLoading(false);
     });
     
-    // Set loading to false if there is no session on initial load
     const getInitialSession = async () => {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
@@ -111,14 +126,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     getInitialSession();
 
-
     return () => {
       subscription.unsubscribe();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toast]);
 
-  // Fetch active session when user is available
+  // Fetch active attendance session when user is available
   useEffect(() => {
     if (!user?.id) {
         setSessionStartTime(null);
@@ -180,15 +193,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(timer);
   }, [sessionStartTime]);
 
-
   useEffect(() => {
     if (loading) return;
     
-    // If user is logged in and on the login page, redirect to dashboard
     if (user && pathname === '/') {
       router.replace('/dashboard');
     } 
-    // If user is not logged in and not on the login page, redirect to login
     else if (!user && pathname !== '/') {
       router.replace('/');
     }
@@ -200,25 +210,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Login error:", error.message);
       return false;
     }
-    // onAuthStateChange will handle setting the user and redirecting
     return true;
   };
 
   const logout = async () => {
-    // End attendance and session records before signing out
     if (user && dbSessionId) {
         try {
-            // 1. End attendance session in 'attendance' table
-            const { error: attendanceError } = await supabase.rpc('end_current_attendance', { user_id_param: user.id });
-            if (attendanceError) throw attendanceError;
-            
-            // 2. End session in 'sessions' table
-            const { error: sessionError } = await supabase
+            await supabase.rpc('end_current_attendance', { user_id_param: user.id });
+            await supabase
                 .from('sessions')
                 .update({ logout_time: new Date().toISOString() })
                 .eq('id', dbSessionId);
-            if (sessionError) throw sessionError;
-
         } catch (error: any) {
              toast({
                 title: 'خطأ في إنهاء الجلسة',
@@ -227,7 +229,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             });
         }
     }
-    // Now, sign out from Supabase auth. This will trigger onAuthStateChange to clear local state.
     await supabase.auth.signOut();
     router.push('/');
   };

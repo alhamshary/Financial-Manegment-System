@@ -35,13 +35,11 @@ export default function AttendancePage() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [isFiltering, setIsFiltering] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
   
   // Data state
   const [rawLogs, setRawLogs] = useState<AttendanceLog[]>([]);
   const [aggregatedData, setAggregatedData] = useState<AggregatedAttendance[]>([]);
   const [users, setUsers] = useState<Tables<'users'>[]>([]);
-  const [dataFetchedForDate, setDataFetchedForDate] = useState<string | null>(null);
 
   // Filter state - default to last 30 days
   const [date, setDate] = useState<DateRange | undefined>({
@@ -50,19 +48,8 @@ export default function AttendancePage() {
   });
   const [selectedUser, setSelectedUser] = useState<string>('');
   
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  const handleApplyFilters = useCallback(async (isInitialLoad = false) => {
-    const today = new Date().toISOString().split('T')[0];
-
-    if (isInitialLoad || (dataFetchedForDate && dataFetchedForDate !== today)) {
-        setLoading(true);
-    } else {
-        setIsFiltering(true);
-    }
-
+  const fetchAttendanceData = useCallback(async () => {
+    setIsFiltering(true);
     try {
       let query = supabase.from('attendance')
         .select('*, users(name)')
@@ -73,7 +60,10 @@ export default function AttendancePage() {
         const toDate = date.to ? endOfDay(date.to) : endOfDay(date.from);
         query = query.lte('work_date', format(toDate, 'yyyy-MM-dd'));
       } else {
-         query = query.gte('work_date', format(subDays(new Date(), 30), 'yyyy-MM-dd'));
+         const defaultFrom = subDays(new Date(), 29);
+         const defaultTo = new Date();
+         query = query.gte('work_date', format(startOfDay(defaultFrom), 'yyyy-MM-dd'));
+         query = query.lte('work_date', format(endOfDay(defaultTo), 'yyyy-MM-dd'));
       }
 
       if (selectedUser) {
@@ -86,72 +76,55 @@ export default function AttendancePage() {
 
       if (error) throw error;
       setRawLogs((data as AttendanceLog[]) || []);
-      setDataFetchedForDate(today);
 
     } catch (error: any) {
-      toast({ title: "خطأ في تطبيق الفلاتر", description: error.message, variant: 'destructive' });
+      toast({ title: "خطأ في جلب السجلات", description: error.message, variant: 'destructive' });
     } finally {
       setIsFiltering(false);
-      setLoading(false);
     }
-  }, [date, selectedUser, toast, dataFetchedForDate]);
+  }, [date, selectedUser, toast]);
 
+  // Initial data fetch for users list and the first report
   useEffect(() => {
     const fetchInitialData = async () => {
       setLoading(true);
       try {
-        const [usersData] = await Promise.all([
-          supabase.from('users').select('*').order('name'),
-        ]);
-
-        if (usersData.error) throw usersData.error;
+        const { data: usersData, error: usersError } = await supabase.from('users').select('*').order('name');
+        if (usersError) throw usersError;
+        setUsers(usersData || []);
         
-        setUsers(usersData.data || []);
-        
-        await handleApplyFilters(true);
+        await fetchAttendanceData();
 
       } catch (error: any) {
         toast({ title: "خطأ في جلب البيانات الأولية", description: error.message, variant: 'destructive' });
+      } finally {
+        setLoading(false);
       }
     };
-    if (isMounted) {
-      fetchInitialData();
-    }
+    
+    fetchInitialData();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMounted]);
+  }, []);
 
-  // Real-time subscription for attendance changes
+  // Real-time subscription for any changes in the attendance table
   useEffect(() => {
     const channel = supabase
-      .channel('attendance-page-updates')
+      .channel('public:attendance')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'attendance' },
-        () => handleApplyFilters()
+        () => {
+          fetchAttendanceData();
+        }
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [handleApplyFilters]);
+  }, [fetchAttendanceData]);
 
-  // Handle re-fetching data when tab becomes visible again
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        const today = new Date().toISOString().split('T')[0];
-        if (dataFetchedForDate && dataFetchedForDate !== today) {
-          handleApplyFilters();
-        }
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [dataFetchedForDate, handleApplyFilters]);
-  
+  // Data aggregation logic to sum up daily totals
   useEffect(() => {
     const dailyTotals: { [key: string]: AggregatedAttendance } = {};
     
@@ -195,11 +168,11 @@ export default function AttendancePage() {
   
   const formatDuration = (minutes: number) => {
     const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
+    const mins = Math.floor(minutes % 60); // Use floor to avoid fractional minutes
     return `${hours} س ${mins} د`;
   }
 
-  if (!isMounted) {
+  if (loading) {
     return (
       <AppLayout allowedRoles={['admin', 'manager']}>
          <div className="flex justify-center items-center h-[calc(100vh-200px)]">
@@ -271,19 +244,13 @@ export default function AttendancePage() {
                 ))}
               </SelectContent>
             </Select>
-             <Button onClick={() => handleApplyFilters()} disabled={isFiltering || loading}>
-                {(isFiltering || loading) && <Loader2 className="h-4 w-4 animate-spin" />}
+             <Button onClick={fetchAttendanceData} disabled={isFiltering}>
+                {isFiltering && <Loader2 className="h-4 w-4 animate-spin" />}
                 تطبيق الفلاتر
              </Button>
           </div>
         </CardHeader>
         <CardContent>
-          {loading ? (
-             <div className="flex justify-center items-center h-48">
-                <Loader2 className="h-8 w-8 animate-spin" />
-             </div>
-          ) : (
-            <>
             {rawLogs.length === 1000 && (
                 <Alert variant="default" className="mb-4 bg-amber-100 border-amber-300 text-amber-800">
                     <AlertCircle className="h-4 w-4 !text-amber-800" />
@@ -316,8 +283,6 @@ export default function AttendancePage() {
                 }
               </TableBody>
             </Table>
-            </>
-          )}
         </CardContent>
       </Card>
     </AppLayout>
