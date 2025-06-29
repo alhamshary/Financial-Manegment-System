@@ -20,17 +20,24 @@ export interface User {
 
 export type AppSettings = Tables<'app_settings'>;
 
+// Context for stable authentication data
 export interface AuthContextType {
   user: User | null;
-  login: (email: string, pass:string) => Promise<boolean>;
+  login: (email: string, pass: string) => Promise<boolean>;
   logout: () => void;
   loading: boolean;
   settings: AppSettings | null;
+}
+
+export const AuthContext = createContext<AuthContextType | null>(null);
+
+// Context for frequently updating timer data
+export interface TimerContextType {
   sessionDuration: string;
   isSessionLoading: boolean;
 }
 
-export const AuthContext = createContext<AuthContextType | null>(null);
+export const TimerContext = createContext<TimerContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -316,11 +323,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push('/');
   };
 
-  const value = { user, login, logout, loading, settings, sessionDuration, isSessionLoading };
+  const authValue = { user, login, logout, loading, settings };
+  const timerValue = { sessionDuration, isSessionLoading };
 
   return (
-    <AuthContext.Provider value={value}>
-      {children}
+    <AuthContext.Provider value={authValue}>
+        <TimerContext.Provider value={timerValue}>
+            {children}
+        </TimerContext.Provider>
     </AuthContext.Provider>
   );
 }

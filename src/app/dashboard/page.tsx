@@ -1,7 +1,7 @@
 
 "use client";
 import { AppLayout } from "@/components/app-layout";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth, useTimer } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -29,7 +29,7 @@ type AdminServiceLog = {
 };
 
 function SessionTimerCard() {
-  const { sessionDuration, isSessionLoading } = useAuth();
+  const { sessionDuration, isSessionLoading } = useTimer();
 
   return (
     <Card>
