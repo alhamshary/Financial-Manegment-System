@@ -96,7 +96,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (event === 'SIGNED_IN') {
             try {
-                // Ensure this only runs on the client where navigator is available
                 if (typeof window !== 'undefined') {
                     await supabase.rpc('auto_start_attendance', { user_id_param: currentUser.id });
                     const { data: sessionRecord, error: sessionError } = await supabase
@@ -124,17 +123,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSessionStartTime(null);
         setDbSessionId(null);
       }
-      // Note: We keep loading true until settings are also fetched.
+      
+      // The 'INITIAL_SESSION' event is fired on page load, once the session is retrieved from storage.
+      // After this event, we can consider the session-specific loading to be complete.
+      // The overall app loading state is handled by the settings fetcher to ensure all data is ready.
+      if (event === 'INITIAL_SESSION') {
+        setIsSessionLoading(false);
+      }
     });
-    
-    const getInitialSession = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-            setLoading(false);
-            setIsSessionLoading(false);
-        }
-    };
-    getInitialSession();
 
     return () => {
       subscription.unsubscribe();
@@ -160,7 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSettings({ id: true, office_title: 'المكتب الرئيسي', app_theme: 'theme-default' });
       }
 
-      setLoading(false); // End loading after user and settings are fetched
+      setLoading(false); // End loading after settings are fetched
     };
 
     fetchSettings();
@@ -192,7 +188,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user?.id) {
         setSessionStartTime(null);
-        setIsSessionLoading(false);
         return;
     }
 
