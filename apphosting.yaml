@@ -1,5 +1,0 @@
-# Settings to manage and configure a Firebase App Hosting backend.
-# https://firebase.google.com/docs/app-hosting/configure
-
-# The configuration in this file has been removed to resolve a deployment conflict.
-# The project is now configured for static deployment via firebase.json.
