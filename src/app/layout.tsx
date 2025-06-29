@@ -4,7 +4,7 @@ import { Cairo } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/components/auth-provider';
 import { Toaster } from '@/components/ui/toaster';
-import { cookies } from 'next/headers';
+
 
 const cairo = Cairo({
   subsets: ['arabic'],
@@ -23,9 +23,6 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // This line forces dynamic rendering for the entire app.
-  cookies();
-
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
       <head />
