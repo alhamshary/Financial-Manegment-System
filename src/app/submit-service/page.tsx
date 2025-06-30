@@ -38,7 +38,7 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 export default function SubmitServicePage() {
-  const { toast } = useAuth();
+  const { toast } = useToast();
   const { user } = useAuth();
 
   const [services, setServices] = useState<Service[]>([]);

@@ -54,69 +54,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loading = authLoading || settingsLoading;
 
   useEffect(() => {
-    // Fetch settings and listen for auth changes in parallel
     const fetchSettings = async () => {
-        try {
-            const { data: appSettings, error: settingsError } = await supabase
-                .from('app_settings')
-                .select('office_title, app_theme')
-                .eq('id', true)
-                .single();
+      try {
+        const { data: appSettings, error: settingsError } = await supabase
+          .from('app_settings')
+          .select('office_title, app_theme')
+          .eq('id', true)
+          .single();
 
-            if (settingsError && settingsError.code !== 'PGRST116') {
-                throw settingsError;
-            }
-            const finalSettings = appSettings || { id: true, office_title: 'المكتب الرئيسي', app_theme: 'theme-default' };
-            setSettings(finalSettings);
-            if (finalSettings.app_theme) {
-                applyTheme(finalSettings.app_theme);
-            }
-        } catch (error) {
-            console.error("Error fetching app settings:", error);
-            // Set default settings on error to prevent app crash
-            setSettings({ id: true, office_title: 'المكتب الرئيسي', app_theme: 'theme-default' });
-        } finally {
-            setSettingsLoading(false);
+        if (settingsError && settingsError.code !== 'PGRST116') {
+          throw settingsError;
         }
+        const finalSettings = appSettings || { id: true, office_title: 'المكتب الرئيسي', app_theme: 'theme-default' };
+        setSettings(finalSettings);
+        if (finalSettings.app_theme) {
+          applyTheme(finalSettings.app_theme);
+        }
+      } catch (error) {
+        console.error("Error fetching app settings:", error);
+        setSettings({ id: true, office_title: 'المكتب الرئيسي', app_theme: 'theme-default' });
+      } finally {
+        setSettingsLoading(false);
+      }
     };
     
     fetchSettings();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-        if (session?.user) {
-            const { data: profile } = await supabase
-                .from('users')
-                .select('name, role')
-                .eq('id', session.user.id)
-                .single();
+      setAuthLoading(true);
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from('users')
+          .select('name, role')
+          .eq('id', session.user.id)
+          .single();
 
-            setUser({
-                id: session.user.id,
-                email: session.user.email!,
-                name: profile?.name || session.user.email!,
-                role: (profile?.role as UserRole) || 'employee',
-            });
-        } else {
-            setUser(null);
-        }
-        setAuthLoading(false);
+        setUser({
+          id: session.user.id,
+          email: session.user.email!,
+          name: profile?.name || session.user.email!,
+          role: (profile?.role as UserRole) || 'employee',
+        });
+      } else {
+        setUser(null);
+      }
+      setAuthLoading(false);
 
-        if (_event === 'SIGNED_IN' && session?.user) {
-            try {
-                if (typeof window !== 'undefined') {
-                    await supabase.rpc('auto_start_attendance', { user_id_param: session.user.id });
-                    // We don't need to set dbSessionId here anymore, logout will find it.
-                }
-            } catch (error: any) {
-                toast({ title: 'خطأ في بدء الجلسة', description: `لم نتمكن من تسجيل جلسة الحضور أو الدخول بشكل صحيح: ${error.message}`, variant: 'destructive'});
-            }
+      if (_event === 'SIGNED_IN' && session?.user) {
+        try {
+          if (typeof window !== 'undefined') {
+            await supabase.rpc('auto_start_attendance', { user_id_param: session.user.id });
+          }
+        } catch (error: any) {
+          toast({ title: 'خطأ في بدء الجلسة', description: `لم نتمكن من تسجيل جلسة الحضور أو الدخول بشكل صحيح: ${error.message}`, variant: 'destructive'});
         }
+      }
 
-        if (_event === 'SIGNED_OUT') {
-            setUser(null);
-            setSessionStartTime(null);
-            router.push('/');
-        }
+      if (_event === 'SIGNED_OUT') {
+        setUser(null);
+        setSessionStartTime(null);
+        router.push('/');
+      }
     });
 
     return () => {
@@ -241,14 +239,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const authValue = { user, loading, settings, login, logout };
   const timerValue = { sessionDuration, isSessionLoading };
 
+  if (loading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+      </div>
+    );
+  }
+
   return (
     <AuthContext.Provider value={authValue}>
         <TimerContext.Provider value={timerValue}>
-            {loading ? (
-              <div className="flex h-screen w-full items-center justify-center">
-                <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-              </div>
-            ) : children}
+            {children}
         </TimerContext.Provider>
     </AuthContext.Provider>
   );
