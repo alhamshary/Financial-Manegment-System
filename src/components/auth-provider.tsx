@@ -52,12 +52,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [dbSessionId, setDbSessionId] = useState<number | null>(null);
 
   useEffect(() => {
-    const initializeApp = async () => {
-      try {
-        const [{ data: { session } }, { data: appSettings, error: settingsError }] = await Promise.all([
-          supabase.auth.getSession(),
-          supabase.from('app_settings').select('office_title, app_theme').eq('id', true).single()
-        ]);
+    setLoading(true);
+
+    const fetchSettings = async () => {
+        const { data: appSettings, error: settingsError } = await supabase
+            .from('app_settings')
+            .select('office_title, app_theme')
+            .eq('id', true)
+            .single();
 
         if (settingsError && settingsError.code !== 'PGRST116') {
             console.error("Error fetching app settings:", settingsError);
@@ -65,74 +67,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const finalSettings = appSettings || { id: true, office_title: 'المكتب الرئيسي', app_theme: 'theme-default' };
         setSettings(finalSettings);
         if (finalSettings.app_theme) {
-          applyTheme(finalSettings.app_theme);
+            applyTheme(finalSettings.app_theme);
         }
-
-        if (session?.user) {
-          const { data: profile } = await supabase
-            .from('users')
-            .select('name, role')
-            .eq('id', session.user.id)
-            .single();
-
-          setUser({
-            id: session.user.id,
-            email: session.user.email!,
-            name: profile?.name || session.user.email!,
-            role: (profile?.role as UserRole) || 'employee',
-          });
-        } else {
-          setUser(null);
-        }
-
-      } catch (error) {
-        console.error("Initialization error:", error);
-        setUser(null);
-      } finally {
-        setLoading(false);
-      }
     };
-    
-    initializeApp();
+    fetchSettings();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (_event === 'SIGNED_IN' && session?.user) {
-        const currentUser = session.user;
-        const { data: profile } = await supabase
-            .from('users')
-            .select('name, role')
-            .eq('id', currentUser.id)
-            .single();
+        if (session?.user) {
+            const { data: profile } = await supabase
+                .from('users')
+                .select('name, role')
+                .eq('id', session.user.id)
+                .single();
 
-        setUser({
-          id: currentUser.id,
-          email: currentUser.email!,
-          name: profile?.name || currentUser.email!,
-          role: (profile?.role as UserRole) || 'employee',
-        });
-
-        try {
-            if (typeof window !== 'undefined') {
-                await supabase.rpc('auto_start_attendance', { user_id_param: currentUser.id });
-                const { data: sessionRecord, error: sessionError } = await supabase
-                    .from('sessions')
-                    .insert({ user_id: currentUser.id, login_time: new Date().toISOString(), device_info: navigator.userAgent })
-                    .select('id')
-                    .single();
-                if (sessionError) throw sessionError;
-                setDbSessionId(sessionRecord.id);
-            }
-        } catch (error: any) {
-            toast({ title: 'خطأ في بدء الجلسة', description: `لم نتمكن من تسجيل جلسة الحضور أو الدخول بشكل صحيح: ${error.message}`, variant: 'destructive'});
+            setUser({
+                id: session.user.id,
+                email: session.user.email!,
+                name: profile?.name || session.user.email!,
+                role: (profile?.role as UserRole) || 'employee',
+            });
+        } else {
+            setUser(null);
         }
-      }
+        setLoading(false); // Crucially, set loading to false only after we have a session response.
 
-      if (_event === 'SIGNED_OUT') {
-        setUser(null);
-        setSessionStartTime(null);
-        setDbSessionId(null);
-        router.push('/');
-      }
+        if (_event === 'SIGNED_IN' && session?.user) {
+            try {
+                if (typeof window !== 'undefined') {
+                    await supabase.rpc('auto_start_attendance', { user_id_param: session.user.id });
+                    const { data: sessionRecord, error: sessionError } = await supabase
+                        .from('sessions')
+                        .insert({ user_id: session.user.id, login_time: new Date().toISOString(), device_info: navigator.userAgent })
+                        .select('id')
+                        .single();
+                    if (sessionError) throw sessionError;
+                    setDbSessionId(sessionRecord.id);
+                }
+            } catch (error: any) {
+                toast({ title: 'خطأ في بدء الجلسة', description: `لم نتمكن من تسجيل جلسة الحضور أو الدخول بشكل صحيح: ${error.message}`, variant: 'destructive'});
+            }
+        }
+
+        if (_event === 'SIGNED_OUT') {
+            setUser(null);
+            setSessionStartTime(null);
+            setDbSessionId(null);
+            router.push('/');
+        }
     });
 
     return () => {
