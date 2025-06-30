@@ -28,19 +28,19 @@ export interface AuthContextType {
   logout: () => void;
 }
 
-export const AuthContext = createContext<AuthContextType | null>(null);
-
 export interface TimerContextType {
   sessionDuration: string;
   isSessionLoading: boolean;
 }
 
+export const AuthContext = createContext<AuthContextType | null>(null);
 export const TimerContext = createContext<TimerContextType | null>(null);
+
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
-  const [loading, setLoading] = useState(true); // Start as true
+  const [loading, setLoading] = useState(true); // Always start loading
 
   const router = useRouter();
   const pathname = usePathname();
@@ -50,8 +50,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [sessionDuration, setSessionDuration] = useState('00:00:00');
   const [isSessionLoading, setIsSessionLoading] = useState(true);
 
-  // Effect for fetching app settings, completely independent of auth
+  // This effect handles the entire auth flow.
   useEffect(() => {
+    // 1. Fetch settings once on mount.
     const fetchSettings = async () => {
       const { data, error } = await supabase
         .from('app_settings')
@@ -69,10 +70,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     fetchSettings();
-  }, []);
 
-  // Effect for handling authentication state changes
-  useEffect(() => {
+    // 2. Set up the auth state listener. This is the single source of truth for auth status.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
         // User is signed in, get their profile
@@ -90,8 +89,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
         setUser(loadedUser);
 
-        // Auto-start attendance on sign-in
-        if (_event === 'SIGNED_IN') {
+        // Auto-start attendance on sign-in or initial session load
+        if (_event === 'SIGNED_IN' || _event === 'INITIAL_SESSION') {
           try {
             await supabase.rpc('auto_start_attendance', { user_id_param: session.user.id });
           } catch (rpcError: any) {
@@ -128,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user?.id) {
         setSessionStartTime(null);
+        setIsSessionLoading(false);
         return;
     }
     const fetchActiveSession = async () => {
@@ -177,39 +177,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     if (user) {
         try {
-            // Find and close the active attendance record
-            const { data: activeAttendance } = await supabase
-                .from('attendance')
-                .select('id, check_in')
-                .eq('user_id', user.id)
-                .is('check_out', null)
-                .order('check_in', { ascending: false })
-                .limit(1)
-                .single();
-
-            if (activeAttendance) {
-                const checkInTime = new Date(activeAttendance.check_in).getTime();
-                const durationInMinutes = Math.floor((Date.now() - checkInTime) / (1000 * 60));
-                await supabase.from('attendance')
-                    .update({ check_out: new Date().toISOString(), session_duration: durationInMinutes })
-                    .eq('id', activeAttendance.id);
-            }
+            await supabase.rpc('end_current_attendance', { user_id_param: user.id });
         } catch (error: any) {
              toast({ title: 'خطأ في إنهاء الجلسة', description: `لم نتمكن من إيقاف الجلسة بشكل صحيح: ${error.message}`, variant: 'destructive'});
         }
     }
-    // Always sign out, regardless of the attendance update result
     await supabase.auth.signOut();
   };
 
   const authValue = { user, loading, settings, login, logout };
   const timerValue = { sessionDuration, isSessionLoading };
 
-  // Render a global loading spinner to prevent UI flashes or crashes
+  // This loading screen will now be rendered identically on server and client, fixing the hydration error.
   if (loading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-background">
-        <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+      <div className="flex h-screen w-full items-center justify-center bg-gray-100 dark:bg-neutral-900">
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-gray-600 border-t-transparent"></div>
       </div>
     );
   }
