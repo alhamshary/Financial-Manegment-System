@@ -2,7 +2,7 @@
 "use client";
 
 import type { ReactNode } from 'react';
-import { createContext, useState, useEffect, useContext } from 'react';
+import { createContext, useState, useEffect, useContext, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
@@ -40,8 +40,7 @@ export const TimerContext = createContext<TimerContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   
   const router = useRouter();
   const pathname = usePathname();
@@ -51,54 +50,76 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [sessionDuration, setSessionDuration] = useState('00:00:00');
   const [isSessionLoading, setIsSessionLoading] = useState(true);
   
-  const loading = authLoading || settingsLoading;
-
-  useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        const { data: appSettings, error: settingsError } = await supabase
-          .from('app_settings')
-          .select('office_title, app_theme')
-          .eq('id', true)
-          .single();
-
-        if (settingsError && settingsError.code !== 'PGRST116') {
-          throw settingsError;
-        }
-        const finalSettings = appSettings || { id: true, office_title: 'المكتب الرئيسي', app_theme: 'theme-default' };
-        setSettings(finalSettings);
-        if (finalSettings.app_theme) {
-          applyTheme(finalSettings.app_theme);
-        }
-      } catch (error) {
-        console.error("Error fetching app settings:", error);
-        setSettings({ id: true, office_title: 'المكتب الرئيسي', app_theme: 'theme-default' });
-      } finally {
-        setSettingsLoading(false);
+  const fetchSettings = useCallback(async () => {
+    try {
+      const { data: appSettings, error: settingsError } = await supabase
+        .from('app_settings')
+        .select('office_title, app_theme')
+        .eq('id', true)
+        .single();
+      
+      if (settingsError && settingsError.code !== 'PGRST116') throw settingsError;
+      
+      const finalSettings = appSettings || { id: true, office_title: 'المكتب الرئيسي', app_theme: 'theme-default' };
+      setSettings(finalSettings);
+      if (finalSettings.app_theme) {
+        applyTheme(finalSettings.app_theme);
       }
-    };
-    
-    fetchSettings();
-
+      return finalSettings;
+    } catch (error) {
+      console.error("Error fetching app settings:", error);
+      const defaultSettings = { id: true, office_title: 'المكتب الرئيسي', app_theme: 'theme-default' };
+      setSettings(defaultSettings);
+      applyTheme(defaultSettings.app_theme);
+      return defaultSettings;
+    }
+  }, []);
+  
+  useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setAuthLoading(true);
+      setLoading(true);
+
+      const settingsPromise = fetchSettings();
+      let userPromise: Promise<any>;
+
       if (session?.user) {
-        const { data: profile } = await supabase
+        userPromise = supabase
           .from('users')
           .select('name, role')
           .eq('id', session.user.id)
-          .single();
-
-        setUser({
-          id: session.user.id,
-          email: session.user.email!,
-          name: profile?.name || session.user.email!,
-          role: (profile?.role as UserRole) || 'employee',
-        });
+          .single()
+          .then(({ data: profile }) => {
+              if (profile) {
+                const loadedUser = {
+                  id: session.user.id,
+                  email: session.user.email!,
+                  name: profile.name || session.user.email!,
+                  role: (profile.role as UserRole) || 'employee',
+                };
+                setUser(loadedUser);
+                return loadedUser;
+              }
+              setUser(null);
+              return null;
+          });
       } else {
+        userPromise = Promise.resolve(null);
         setUser(null);
       }
-      setAuthLoading(false);
+      
+      const [loadedUser] = await Promise.all([userPromise, settingsPromise]);
+
+      if (loadedUser) {
+        if (pathname === '/') {
+          router.replace('/dashboard');
+        }
+      } else {
+        if (pathname !== '/') {
+          router.replace('/');
+        }
+      }
+      
+      setLoading(false);
 
       if (_event === 'SIGNED_IN' && session?.user) {
         try {
@@ -117,21 +138,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    return () => {
-      subscription.unsubscribe();
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (loading) return;
-    
-    if (user && pathname === '/') {
-      router.replace('/dashboard');
-    } else if (!user && pathname !== '/') {
-      router.replace('/');
-    }
-  }, [user, loading, pathname, router]);
+    return () => subscription.unsubscribe();
+  }, [router, pathname, fetchSettings, toast]);
 
   useEffect(() => {
     if (!user?.id) { 
@@ -196,21 +204,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (user) {
         try {
             const now = new Date();
-            // Directly find the active session and attendance to close them
-            const { data: activeSession, error: sessionError } = await supabase
-                .from('sessions')
-                .select('id')
-                .eq('user_id', user.id)
-                .is('logout_time', null)
-                .order('login_time', { ascending: false })
-                .limit(1)
-                .single();
-
-            if (sessionError && sessionError.code !== 'PGRST116') throw sessionError;
-            if (activeSession) {
-                await supabase.from('sessions').update({ logout_time: now.toISOString() }).eq('id', activeSession.id);
-            }
-
+            // Directly find the active attendance to close it
             const { data: activeAttendance, error: attendanceError } = await supabase
                 .from('attendance')
                 .select('id, check_in')
@@ -234,7 +228,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     await supabase.auth.signOut();
   };
-
 
   const authValue = { user, loading, settings, login, logout };
   const timerValue = { sessionDuration, isSessionLoading };

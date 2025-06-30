@@ -26,22 +26,22 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
   const router = useRouter();
   
   useEffect(() => {
-    // This logic is now handled by the central AuthProvider
+    // This effect runs only after the initial loading is complete.
+    // AuthProvider now handles the initial redirect. This is a secondary check for role access.
     if (!loading && user && allowedRoles && !allowedRoles.includes(user.role)) {
+      // If the user's role is not allowed for this page, redirect to the dashboard.
       router.push("/dashboard");
     }
   }, [user, loading, router, allowedRoles]);
 
-  // The global loading spinner is now inside AuthProvider,
-  // so we don't need to render it here anymore.
+  // AuthProvider handles the global loading spinner, so we don't render anything until loading is false.
   if (loading || !user || !settings) {
-    return null; // AuthProvider is handling the loading state
+    return null; 
   }
 
-  // Also check role access after loading is complete
+  // Also, prevent rendering if the user's role is not allowed.
+  // The redirection is handled in the useEffect, but this is a safeguard.
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    // Redirecting is handled in the useEffect above, but as a fallback,
-    // we can return null to prevent rendering unauthorized content.
     return null;
   }
 
