@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -15,31 +16,18 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { getInitials } from "@/lib/utils";
 import { LogOut, User as UserIcon, Loader2 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
-import { useToast } from "@/hooks/use-toast";
 
 export function UserNav() {
   const { user, logout } = useAuth();
-  const { toast } = useToast();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   if (!user) return null;
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     setIsLoggingOut(true);
-    try {
-      // Attempt to end the current attendance session, but don't let it block logout.
-      await supabase.rpc('end_current_attendance', { user_id_param: user.id });
-    } catch (error: any) {
-      // If ending the session fails, inform the user but proceed with logout.
-      console.error("Failed to end attendance session on logout:", error);
-      toast({ title: 'خطأ في إنهاء الجلسة', description: 'لم نتمكن من إيقاف الجلسة بشكل صحيح، ولكن سيتم تسجيل الخروج.', variant: 'destructive' });
-    } finally {
-      // Always log out the user, regardless of whether the RPC call succeeded.
-      await logout();
-      // The state update might not happen if the component unmounts immediately, which is fine.
-      setIsLoggingOut(false);
-    }
+    // Call the logout function from the auth context.
+    // It will handle the async operations and state changes.
+    logout();
   };
 
   return (
