@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { ReactNode } from 'react';
@@ -38,38 +37,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
 
   const logout = useCallback(async () => {
-    // End attendance and session in the background. Don't let it block logout.
-    if (user?.id) {
-        supabase.rpc('end_current_attendance', { user_id_param: user.id })
-            .catch(err => console.error("Failed to end attendance on logout:", err));
-        
-        supabase.from('sessions').select('id').eq('user_id', user.id).is('logout_time', null).limit(1).single()
-            .then(({ data, error }) => {
-                if (error && error.code !== 'PGRST116') {
-                   console.error("Error finding active session for logout:", error);
-                }
-                if (data) {
-                    supabase.from('sessions').update({ logout_time: new Date().toISOString() }).eq('id', data.id)
-                        .catch(err => console.error("Failed to update session on logout:", err));
-                }
-            });
-    }
-
     await supabase.auth.signOut();
     setUser(null);
     router.push('/');
-  }, [user, router]);
+  }, [router]);
 
 
   useEffect(() => {
-    // We start with loading=true and only set it to false once we have a user or know there is none.
     setLoading(true);
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         const currentUser = session?.user;
         if (currentUser) {
           try {
-              // Fetch profile and settings in parallel for speed
+              // Fetch critical data first
               const [profileResult, settingsResult] = await Promise.all([
                 supabase.from('users').select('name, role').eq('id', currentUser.id).single(),
                 supabase.from('app_settings').select('*').eq('id', true).single()
@@ -77,6 +58,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
               const { data: profile, error: profileError } = profileResult;
               if (profileError) throw profileError;
+
+              const { data: appSettings, error: settingsError } = settingsResult;
+              if (settingsError) throw settingsError;
               
               setUser({
                 id: currentUser.id,
@@ -85,28 +69,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 role: (profile.role as UserRole) || 'employee',
               });
 
-              const { data: appSettings } = settingsResult;
               const currentSettings = (appSettings as AppSettings) || { id: true, office_title: 'المكتب الرئيسي', app_theme: 'theme-default' };
               setSettings(currentSettings);
               applyTheme(currentSettings.app_theme);
 
-              // Start attendance and session tracking in the background (fire and forget)
-              supabase.rpc('auto_start_attendance', { user_id_param: currentUser.id })
-                 .catch(err => toast({ title: "خطأ في بدء الحضور", description: err.message, variant: 'destructive' }));
-              
-              if (typeof window !== 'undefined') {
-                  supabase.from('sessions').insert({ user_id: currentUser.id, login_time: new Date().toISOString(), device_info: navigator.userAgent })
-                     .catch(err => console.error("Failed to create session record:", err));
-              }
+              // --- Non-blocking background tasks ---
+              // This runs in the background. If it fails, it shows a toast but does NOT block login.
+              (async () => {
+                try {
+                    const { error: attendanceError } = await supabase.rpc('auto_start_attendance', { user_id_param: currentUser.id });
+                    if (attendanceError) throw new Error(`Attendance Error: ${attendanceError.message}`);
+                    
+                    if (typeof window !== 'undefined') {
+                       const { error: sessionError } = await supabase.from('sessions').insert({ user_id: currentUser.id, login_time: new Date().toISOString(), device_info: navigator.userAgent });
+                       if (sessionError) throw new Error(`Session Error: ${sessionError.message}`);
+                    }
+                } catch (err: any) {
+                    toast({ title: "خطأ في بدء الجلسة", description: err.message, variant: 'destructive' });
+                }
+              })();
 
           } catch (error: any) {
+              // This catch block now only handles critical data loading errors
               toast({ title: "خطأ في تحميل البيانات", description: error.message, variant: "destructive" });
-              await supabase.auth.signOut(); // Log out if critical data is missing
+              await supabase.auth.signOut(); 
               setUser(null);
               setSettings(null);
           }
         } else {
-          // No user, clear state
           setUser(null);
           setSettings(null);
         }
@@ -129,7 +119,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return true;
   };
   
-  // Memoize the context value to prevent unnecessary re-renders
   const value = useMemo(() => ({ user, login, logout, loading, settings }), [user, login, logout, loading, settings]);
 
   return (
@@ -144,5 +133,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     </AuthContext.Provider>
   );
 }
-
-    

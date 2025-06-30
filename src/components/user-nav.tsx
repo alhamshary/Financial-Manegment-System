@@ -16,6 +16,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { getInitials } from "@/lib/utils";
 import { LogOut, User as UserIcon, Loader2 } from "lucide-react";
 import { useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 export function UserNav() {
   const { user, logout } = useAuth();
@@ -25,8 +26,24 @@ export function UserNav() {
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
+    
+    // Non-blocking background task to end attendance.
+    // This will run in the background and NOT prevent the user from logging out.
+    if (user.id) {
+        try {
+            const { error } = await supabase.rpc('end_current_attendance', { user_id_param: user.id });
+            if (error) {
+                // Log the error but don't block the user's logout flow.
+                console.error("Background task: Failed to end attendance session on logout:", error);
+            }
+        } catch (error) {
+            console.error("Background task: Exception while ending attendance session:", error);
+        }
+    }
+    
+    // Logout immediately, regardless of the background task's status.
     await logout();
-    // The redirect in logout will handle the rest, no need to setIsLoggingOut(false)
+    // No need to set isLoggingOut to false, the component will unmount upon redirect.
   };
 
   return (
@@ -64,5 +81,3 @@ export function UserNav() {
     </DropdownMenu>
   );
 }
-
-    
