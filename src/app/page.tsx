@@ -9,13 +9,14 @@ export default function LoginPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
-  if(loading || user) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-      </div>
-    );
-  }
+  // This logic is now handled reliably in AuthProvider
+  // if(loading || user) {
+  //   return (
+  //     <div className="flex h-screen w-full items-center justify-center">
+  //       <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+  //     </div>
+  //   );
+  // }
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4">

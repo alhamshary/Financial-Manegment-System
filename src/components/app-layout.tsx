@@ -26,17 +26,23 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
   const router = useRouter();
   
   useEffect(() => {
+    // This logic is now handled by the central AuthProvider
     if (!loading && user && allowedRoles && !allowedRoles.includes(user.role)) {
       router.push("/dashboard");
     }
   }, [user, loading, router, allowedRoles]);
 
-  if (loading || !user || (allowedRoles && !allowedRoles.includes(user.role)) || !settings) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-      </div>
-    );
+  // The global loading spinner is now inside AuthProvider,
+  // so we don't need to render it here anymore.
+  if (loading || !user || !settings) {
+    return null; // AuthProvider is handling the loading state
+  }
+
+  // Also check role access after loading is complete
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    // Redirecting is handled in the useEffect above, but as a fallback,
+    // we can return null to prevent rendering unauthorized content.
+    return null;
   }
 
   return (
