@@ -43,17 +43,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async (_event, session) => {
         setLoading(true);
         try {
-          // Fetch settings regardless of session state for login page theming
-          const { data: appSettings, error: settingsError } = await supabase
+            const { data: appSettings, error: settingsError } = await supabase
             .from('app_settings')
             .select('*')
             .eq('id', true)
             .single();
 
-          if (settingsError && settingsError.code !== 'PGRST116') {
-            throw settingsError;
-          }
-
+          if (settingsError && settingsError.code !== 'PGRST116') throw settingsError;
           const loadedSettings = appSettings || { id: true, office_title: 'المكتب الرئيسي', app_theme: 'theme-default' };
           setSettings(loadedSettings);
           applyTheme(loadedSettings.app_theme);
@@ -112,10 +108,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     await supabase.auth.signOut();
-  }, []);
+    setUser(null);
+    router.replace('/');
+  }, [router]);
 
   const authValue = useMemo(() => ({ user, loading, settings, login, logout }), [user, loading, settings, login, logout]);
 
+  // This loading screen is only for the very initial load or when session changes.
   if (loading) {
     return (
       <div className="flex h-screen w-full items-center justify-center">

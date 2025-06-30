@@ -28,14 +28,16 @@ export function UserNav() {
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
-      // End the current attendance session before logging out
+      // Attempt to end the current attendance session, but don't let it block logout.
       await supabase.rpc('end_current_attendance', { user_id_param: user.id });
     } catch (error: any) {
-      // We still proceed with logout even if this fails, but we notify the user.
-      toast({ title: 'خطأ في إنهاء الجلسة', description: `لم نتمكن من إيقاف الجلسة بشكل صحيح: ${error.message}`, variant: 'destructive' });
+      // If ending the session fails, inform the user but proceed with logout.
+      console.error("Failed to end attendance session on logout:", error);
+      toast({ title: 'خطأ في إنهاء الجلسة', description: 'لم نتمكن من إيقاف الجلسة بشكل صحيح، ولكن سيتم تسجيل الخروج.', variant: 'destructive' });
     } finally {
-      // Always attempt to log out the user
+      // Always log out the user, regardless of whether the RPC call succeeded.
       await logout();
+      // The state update might not happen if the component unmounts immediately, which is fine.
       setIsLoggingOut(false);
     }
   };

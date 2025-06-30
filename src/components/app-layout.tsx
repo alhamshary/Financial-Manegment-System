@@ -35,7 +35,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
 
   useEffect(() => {
     // This side-effect runs once when the user is confirmed to be logged in.
-    // It's separated from the main auth flow to prevent blocking login.
+    // It is separated from the main auth flow to prevent blocking login.
     const startAttendance = async () => {
       if (user?.id) {
         try {
@@ -49,13 +49,20 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
       }
     };
     
-    startAttendance();
-  }, [user?.id, toast]);
+    // Only run this logic AFTER the initial loading is complete and we have a user.
+    if (!loading && user) {
+        startAttendance();
+    }
+  }, [user, loading, toast]);
 
+  // We should not render anything until the auth state is confirmed.
+  // The AuthProvider already shows a loading screen.
   if (loading || !user || !settings) {
     return null; 
   }
 
+  // If roles are specified and the user does not have the required role, don't render.
+  // The redirection is handled in the first useEffect.
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return null;
   }
