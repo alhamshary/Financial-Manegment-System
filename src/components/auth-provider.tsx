@@ -69,8 +69,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       applyTheme(finalSettings.app_theme);
     };
 
-    fetchSettings();
-
     // 2. Set up the auth state listener. This is the single source of truth for auth status.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
@@ -105,6 +103,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Critical: set loading to false after the first auth check is complete
       setLoading(false);
     });
+
+    fetchSettings();
 
     return () => {
       subscription.unsubscribe();
@@ -188,10 +188,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const authValue = { user, loading, settings, login, logout };
   const timerValue = { sessionDuration, isSessionLoading };
 
-  // This loading screen will now be rendered identically on server and client, fixing the hydration error.
   if (loading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-gray-100 dark:bg-neutral-900">
+      <div className="flex h-screen w-full items-center justify-center">
         <div className="h-12 w-12 animate-spin rounded-full border-4 border-gray-600 border-t-transparent"></div>
       </div>
     );
