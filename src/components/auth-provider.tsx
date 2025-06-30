@@ -39,8 +39,9 @@ export const TimerContext = createContext<TimerContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [settingsLoading, setSettingsLoading] = useState(true);
   
   const router = useRouter();
   const pathname = usePathname();
@@ -50,10 +51,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [sessionDuration, setSessionDuration] = useState('00:00:00');
   const [isSessionLoading, setIsSessionLoading] = useState(true);
   const [dbSessionId, setDbSessionId] = useState<number | null>(null);
+  
+  const loading = authLoading || settingsLoading;
 
   useEffect(() => {
-    setLoading(true);
-
+    // Fetch settings independently
     const fetchSettings = async () => {
         const { data: appSettings, error: settingsError } = await supabase
             .from('app_settings')
@@ -69,9 +71,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (finalSettings.app_theme) {
             applyTheme(finalSettings.app_theme);
         }
+        setSettingsLoading(false);
     };
     fetchSettings();
 
+    // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
         if (session?.user) {
             const { data: profile } = await supabase
@@ -89,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
             setUser(null);
         }
-        setLoading(false); // Crucially, set loading to false only after we have a session response.
+        setAuthLoading(false);
 
         if (_event === 'SIGNED_IN' && session?.user) {
             try {
