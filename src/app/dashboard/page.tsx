@@ -1,7 +1,7 @@
 
 "use client";
 import { AppLayout } from "@/components/app-layout";
-import { useAuth, useTimer } from "@/hooks/use-auth";
+import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +31,58 @@ type AdminServiceLog = {
 };
 
 function SessionTimerCard() {
-  const { sessionDuration, isSessionLoading } = useTimer();
+  const { user } = useAuth();
+  const [sessionDuration, setSessionDuration] = useState('00:00:00');
+  const [isSessionLoading, setIsSessionLoading] = useState(true);
+  
+  const fetchActiveSession = useCallback(async (userId: string) => {
+      setIsSessionLoading(true);
+      const todayIso = new Date().toISOString().split('T')[0];
+      const { data } = await supabase
+        .from('attendance')
+        .select('check_in')
+        .eq('user_id', userId)
+        .eq('work_date', todayIso)
+        .is('check_out', null)
+        .order('check_in', { ascending: false })
+        .limit(1)
+        .single();
+      
+      const activeSessionStartTime = data?.check_in || null;
+      
+      if (activeSessionStartTime) {
+        const timerId = setInterval(() => {
+          const start = new Date(activeSessionStartTime).getTime();
+          const now = new Date().getTime();
+          const difference = now - start;
+          const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+          const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
+          const seconds = Math.floor((difference % (1000 * 60)) / 1000);
+          setSessionDuration(`${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`);
+        }, 1000);
+        
+        // Cleanup interval on component unmount
+        return () => clearInterval(timerId);
+      } else {
+        setSessionDuration('00:00:00');
+      }
+      setIsSessionLoading(false);
+  }, []);
+  
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+    if (user?.id) {
+      (async () => {
+        cleanup = await fetchActiveSession(user.id);
+      })();
+    } else {
+      setIsSessionLoading(false);
+    }
+    // Cleanup interval on unmount
+    return () => {
+        if (cleanup) cleanup();
+    }
+  }, [user?.id, fetchActiveSession]);
 
   return (
     <Card>
