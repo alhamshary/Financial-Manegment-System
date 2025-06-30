@@ -50,32 +50,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [sessionStartTime, setSessionStartTime] = useState<string | null>(null);
   const [sessionDuration, setSessionDuration] = useState('00:00:00');
   const [isSessionLoading, setIsSessionLoading] = useState(true);
-  const [dbSessionId, setDbSessionId] = useState<number | null>(null);
   
   const loading = authLoading || settingsLoading;
 
   useEffect(() => {
-    // Fetch settings independently
+    // Fetch settings and listen for auth changes in parallel
     const fetchSettings = async () => {
-        const { data: appSettings, error: settingsError } = await supabase
-            .from('app_settings')
-            .select('office_title, app_theme')
-            .eq('id', true)
-            .single();
+        try {
+            const { data: appSettings, error: settingsError } = await supabase
+                .from('app_settings')
+                .select('office_title, app_theme')
+                .eq('id', true)
+                .single();
 
-        if (settingsError && settingsError.code !== 'PGRST116') {
-            console.error("Error fetching app settings:", settingsError);
+            if (settingsError && settingsError.code !== 'PGRST116') {
+                throw settingsError;
+            }
+            const finalSettings = appSettings || { id: true, office_title: 'المكتب الرئيسي', app_theme: 'theme-default' };
+            setSettings(finalSettings);
+            if (finalSettings.app_theme) {
+                applyTheme(finalSettings.app_theme);
+            }
+        } catch (error) {
+            console.error("Error fetching app settings:", error);
+            // Set default settings on error to prevent app crash
+            setSettings({ id: true, office_title: 'المكتب الرئيسي', app_theme: 'theme-default' });
+        } finally {
+            setSettingsLoading(false);
         }
-        const finalSettings = appSettings || { id: true, office_title: 'المكتب الرئيسي', app_theme: 'theme-default' };
-        setSettings(finalSettings);
-        if (finalSettings.app_theme) {
-            applyTheme(finalSettings.app_theme);
-        }
-        setSettingsLoading(false);
     };
+    
     fetchSettings();
 
-    // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
         if (session?.user) {
             const { data: profile } = await supabase
@@ -99,13 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             try {
                 if (typeof window !== 'undefined') {
                     await supabase.rpc('auto_start_attendance', { user_id_param: session.user.id });
-                    const { data: sessionRecord, error: sessionError } = await supabase
-                        .from('sessions')
-                        .insert({ user_id: session.user.id, login_time: new Date().toISOString(), device_info: navigator.userAgent })
-                        .select('id')
-                        .single();
-                    if (sessionError) throw sessionError;
-                    setDbSessionId(sessionRecord.id);
+                    // We don't need to set dbSessionId here anymore, logout will find it.
                 }
             } catch (error: any) {
                 toast({ title: 'خطأ في بدء الجلسة', description: `لم نتمكن من تسجيل جلسة الحضور أو الدخول بشكل صحيح: ${error.message}`, variant: 'destructive'});
@@ -115,7 +115,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (_event === 'SIGNED_OUT') {
             setUser(null);
             setSessionStartTime(null);
-            setDbSessionId(null);
             router.push('/');
         }
     });
@@ -137,34 +136,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user, loading, pathname, router]);
 
   useEffect(() => {
-    if (user?.id) {
-      const fetchActiveDbSession = async () => {
-        const { data, error } = await supabase.from('sessions').select('id').eq('user_id', user.id).is('logout_time', null).order('login_time', { ascending: false }).limit(1).single();
-        if (error && error.code !== 'PGRST116') { console.error("Error fetching active DB session:", error); } else if (data) { setDbSessionId(data.id); }
-      };
-      if (!dbSessionId) { fetchActiveDbSession(); }
+    if (!user?.id) { 
+        setSessionStartTime(null); 
+        return; 
     }
-  }, [user, dbSessionId]);
-
-  useEffect(() => {
-    if (!user?.id) { setSessionStartTime(null); return; }
     const fetchActiveSession = async () => {
         setIsSessionLoading(true);
         const todayIso = new Date().toISOString().split('T')[0];
-        const { data, error } = await supabase.from('attendance').select('check_in').eq('user_id', user.id).eq('work_date', todayIso).is('check_out', null).order('check_in', { ascending: false }).limit(1).single();
-        if (error && error.code !== 'PGRST116') { toast({ title: "خطأ في جلب الجلسة", description: error.message, variant: 'destructive' }); } else if (data) { setSessionStartTime(data.check_in); }
+        const { data, error } = await supabase
+            .from('attendance')
+            .select('check_in')
+            .eq('user_id', user.id)
+            .eq('work_date', todayIso)
+            .is('check_out', null)
+            .order('check_in', { ascending: false })
+            .limit(1)
+            .single();
+
+        if (error && error.code !== 'PGRST116') { 
+            toast({ title: "خطأ في جلب الجلسة", description: error.message, variant: 'destructive' }); 
+        } else if (data) { 
+            setSessionStartTime(data.check_in); 
+        }
         setIsSessionLoading(false);
     };
     fetchActiveSession();
   }, [user?.id, toast]);
   
   useEffect(() => {
-    if (!sessionStartTime) { setSessionDuration('00:00:00'); return; }
+    if (!sessionStartTime) { 
+        setSessionDuration('00:00:00'); 
+        return; 
+    }
     const timer = setInterval(() => {
         const start = new Date(sessionStartTime).getTime();
         const now = new Date().getTime();
         const difference = now - start;
-        if (difference < 0) { setSessionDuration('00:00:00'); clearInterval(timer); return; }
+        if (difference < 0) { 
+            setSessionDuration('00:00:00'); 
+            clearInterval(timer); 
+            return; 
+        }
         const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
         const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
         const seconds = Math.floor((difference % (1000 * 60)) / 1000);
@@ -175,25 +187,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, pass: string): Promise<boolean> => {
     const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
-    if (error) { console.error("Login error:", error.message); return false; }
+    if (error) { 
+      console.error("Login error:", error.message); 
+      return false; 
+    }
     return true;
   };
 
   const logout = async () => {
-    if (user && dbSessionId) {
+    if (user) {
         try {
             const now = new Date();
-            const { data: activeAttendance, error: findError } = await supabase.from('attendance').select('id, check_in').eq('user_id', user.id).is('check_out', null).order('check_in', { ascending: false }).limit(1).single();
-            if (findError && findError.code !== 'PGRST116') { throw findError; }
+            // Directly find the active session and attendance to close them
+            const { data: activeSession, error: sessionError } = await supabase
+                .from('sessions')
+                .select('id')
+                .eq('user_id', user.id)
+                .is('logout_time', null)
+                .order('login_time', { ascending: false })
+                .limit(1)
+                .single();
+
+            if (sessionError && sessionError.code !== 'PGRST116') throw sessionError;
+            if (activeSession) {
+                await supabase.from('sessions').update({ logout_time: now.toISOString() }).eq('id', activeSession.id);
+            }
+
+            const { data: activeAttendance, error: attendanceError } = await supabase
+                .from('attendance')
+                .select('id, check_in')
+                .eq('user_id', user.id)
+                .is('check_out', null)
+                .order('check_in', { ascending: false })
+                .limit(1)
+                .single();
+
+            if (attendanceError && attendanceError.code !== 'PGRST116') throw attendanceError;
             if (activeAttendance) {
                 const checkInTime = new Date(activeAttendance.check_in).getTime();
-                const nowTime = now.getTime();
-                const durationInMs = nowTime - checkInTime;
-                const durationInMinutes = Math.floor(durationInMs / (1000 * 60));
-                const { error: updateError } = await supabase.from('attendance').update({ check_out: now.toISOString(), session_duration: durationInMinutes, }).eq('id', activeAttendance.id);
-                if (updateError) throw updateError;
+                const durationInMinutes = Math.floor((now.getTime() - checkInTime) / (1000 * 60));
+                await supabase.from('attendance')
+                    .update({ check_out: now.toISOString(), session_duration: durationInMinutes })
+                    .eq('id', activeAttendance.id);
             }
-            await supabase.from('sessions').update({ logout_time: now.toISOString() }).eq('id', dbSessionId);
         } catch (error: any) {
              toast({ title: 'خطأ في إنهاء الجلسة', description: `لم نتمكن من إيقاف الجلسة بشكل صحيح: ${error.message}`, variant: 'destructive'});
         }

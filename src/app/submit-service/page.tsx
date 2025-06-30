@@ -80,31 +80,37 @@ export default function SubmitServicePage() {
     if (service) {
         setSelectedService(service);
         form.setValue("serviceId", serviceId);
-        calculatePrice(service.price, form.getValues('quantity'), form.getValues('discount'));
     }
   };
 
   const calculatePrice = (price: number, quantity: number, discount?: number) => {
     const total = price * quantity;
     const discountedTotal = total - (discount || 0);
-    setFinalPrice(Math.max(0, discountedTotal));
+    return Math.max(0, discountedTotal);
   };
 
-  const watchFields = form.watch(["quantity", "discount"]);
+  const watchFields = form.watch(["quantity", "discount", "serviceId"]);
   
   useEffect(() => {
-    if (selectedService) {
-      calculatePrice(selectedService.price, watchFields[0], watchFields[1]);
+    const currentService = services.find(s => s.id.toString() === watchFields[2]);
+    if (currentService) {
+      const newPrice = calculatePrice(currentService.price, watchFields[0], watchFields[1]);
+      setFinalPrice(newPrice);
+    } else {
+      setFinalPrice(0);
     }
-  }, [selectedService, watchFields]);
+  }, [watchFields, services]);
 
 
   async function onSubmit(values: FormValues) {
-    if (!selectedService || !user) {
+    // Recalculate price inside onSubmit to ensure data integrity
+    const currentService = services.find(s => s.id.toString() === values.serviceId);
+    if (!currentService || !user) {
         toast({ title: "خطأ في الإرسال", description: "يرجى تحديد خدمة والتأكد من تسجيل الدخول.", variant: 'destructive' });
         return;
     }
-    
+    const calculatedFinalPrice = calculatePrice(currentService.price, values.quantity, values.discount);
+
     setSubmitting(true);
 
     try {
@@ -153,12 +159,12 @@ export default function SubmitServicePage() {
         // Step 2: Create order
         const orderData = {
             user_id: user.id,
-            service_id: selectedService.id,
+            service_id: currentService.id,
             client_id: client.id,
-            price: selectedService.price,
+            price: currentService.price,
             quantity: values.quantity,
             discount: values.discount,
-            total: finalPrice,
+            total: calculatedFinalPrice,
             notes: values.notes || null,
             payment_method: values.paymentMethod,
         };
@@ -171,11 +177,10 @@ export default function SubmitServicePage() {
 
         toast({
             title: "تم إرسال الخدمة!",
-            description: `تم تسجيل ${selectedService.name} لـ ${values.clientName} بنجاح.`,
+            description: `تم تسجيل ${currentService.name} لـ ${values.clientName} بنجاح.`,
         });
         form.reset();
         setSelectedService(null);
-        setFinalPrice(0);
 
     } catch (error: any) {
         toast({

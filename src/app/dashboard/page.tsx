@@ -10,6 +10,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
+import { startOfDay, endOfDay, format } from "date-fns";
+
 
 // Define combined types for easier handling
 type EmployeeServiceLog = {
@@ -67,8 +69,8 @@ function EmployeeDashboard() {
       setLoading(true);
     }
 
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString();
-    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).toISOString();
+    const todayStart = startOfDay(now).toISOString();
+    const todayEnd = endOfDay(now).toISOString();
 
     try {
       const [servicesRes, expensesRes] = await Promise.all([
@@ -241,15 +243,14 @@ function AdminManagerDashboard() {
   
   const fetchAdminData = useCallback(async () => {
     const now = new Date();
-    const localTodayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const localTodayDateString = format(now, "yyyy-MM-dd");
 
-    if (dataFetchedForDate !== localTodayIso) {
+    if (dataFetchedForDate !== localTodayDateString) {
         setLoading(true);
     }
 
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString();
-    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).toISOString();
-    const utcTodayIso = new Date().toISOString().split('T')[0];
+    const todayStart = startOfDay(now).toISOString();
+    const todayEnd = endOfDay(now).toISOString();
 
     try {
       const [ordersRes, totalUsersRes, todaysAttendanceRes, expensesRes] = await Promise.all([
@@ -265,7 +266,7 @@ function AdminManagerDashboard() {
         supabase
           .from('attendance')
           .select('user_id, session_duration')
-          .eq('work_date', utcTodayIso),
+          .eq('work_date', localTodayDateString),
         supabase
           .from('expenses')
           .select('amount')
@@ -280,7 +281,7 @@ function AdminManagerDashboard() {
 
       const ordersData = (ordersRes.data as AdminServiceLog[]) || [];
       setLogs(ordersData);
-      setDataFetchedForDate(localTodayIso);
+      setDataFetchedForDate(localTodayDateString);
       
       const totalRevenue = ordersData.reduce((acc: number, log: any) => acc + (log.total || 0), 0);
       const totalExpenses = (expensesRes.data || []).reduce((sum, exp) => sum + exp.amount, 0);
@@ -345,8 +346,8 @@ function AdminManagerDashboard() {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         const now = new Date();
-        const localTodayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-        if (dataFetchedForDate && dataFetchedForDate !== localTodayIso) {
+        const localTodayDateString = format(now, "yyyy-MM-dd");
+        if (dataFetchedForDate && dataFetchedForDate !== localTodayDateString) {
           fetchAdminData();
         }
       }
