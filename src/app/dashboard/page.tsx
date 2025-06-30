@@ -30,70 +30,55 @@ type AdminServiceLog = {
   clients: Pick<Tables<'clients'>, 'name'> | null;
 };
 
-function SessionTimerCard() {
+function SessionInfoCard() {
   const { user } = useAuth();
-  const [sessionDuration, setSessionDuration] = useState('00:00:00');
-  const [isSessionLoading, setIsSessionLoading] = useState(true);
-  
-  const fetchActiveSession = useCallback(async (userId: string) => {
-      setIsSessionLoading(true);
-      const todayIso = new Date().toISOString().split('T')[0];
-      const { data } = await supabase
-        .from('attendance')
-        .select('check_in')
-        .eq('user_id', userId)
-        .eq('work_date', todayIso)
-        .is('check_out', null)
-        .order('check_in', { ascending: false })
-        .limit(1)
-        .single();
-      
-      const activeSessionStartTime = data?.check_in || null;
-      
-      if (activeSessionStartTime) {
-        const timerId = setInterval(() => {
-          const start = new Date(activeSessionStartTime).getTime();
-          const now = new Date().getTime();
-          const difference = now - start;
-          const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-          const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
-          const seconds = Math.floor((difference % (1000 * 60)) / 1000);
-          setSessionDuration(`${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`);
-        }, 1000);
-        
-        // Cleanup interval on component unmount
-        return () => clearInterval(timerId);
-      } else {
-        setSessionDuration('00:00:00');
-      }
-      setIsSessionLoading(false);
-  }, []);
-  
+  const [checkInTime, setCheckInTime] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
   useEffect(() => {
-    let cleanup: (() => void) | undefined;
-    if (user?.id) {
-      (async () => {
-        cleanup = await fetchActiveSession(user.id);
-      })();
-    } else {
-      setIsSessionLoading(false);
-    }
-    // Cleanup interval on unmount
-    return () => {
-        if (cleanup) cleanup();
-    }
-  }, [user?.id, fetchActiveSession]);
+    if (!user?.id) {
+        setIsLoading(false);
+        return;
+    };
+
+    const fetchActiveSession = async () => {
+        setIsLoading(true);
+        const todayIso = new Date().toISOString().split('T')[0];
+        
+        const { data, error } = await supabase
+            .from('attendance')
+            .select('check_in')
+            .eq('user_id', user.id)
+            .eq('work_date', todayIso)
+            .is('check_out', null)
+            .order('check_in', { ascending: false })
+            .limit(1)
+            .single();
+
+        if (data?.check_in) {
+            setCheckInTime(format(new Date(data.check_in), 'p')); // e.g., "10:30 AM"
+        } else if (error && error.code !== 'PGRST116') { // Ignore "no rows" error
+             console.error("Error fetching check-in time:", error.message);
+        }
+        setIsLoading(false);
+    };
+    
+    fetchActiveSession();
+  }, [user?.id]);
+
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>مدة الجلسة الحالية</CardTitle>
+        <CardTitle>وقت بدء الجلسة</CardTitle>
       </CardHeader>
       <CardContent>
-        {isSessionLoading ? (
+        {isLoading ? (
           <Loader2 className="h-8 w-8 animate-spin" />
+        ) : checkInTime ? (
+          <div className="text-4xl font-bold tracking-wider">{checkInTime}</div>
         ) : (
-          <div className="text-4xl font-bold tracking-wider">{sessionDuration}</div>
+          <div className="text-lg text-muted-foreground">لم يتم بدء أي جلسة</div>
         )}
       </CardContent>
     </Card>
@@ -210,7 +195,7 @@ function EmployeeDashboard() {
   return (
     <div className="grid gap-6">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <SessionTimerCard />
+            <SessionInfoCard />
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">إجمالي إيراداتك اليوم</CardTitle>
@@ -416,7 +401,7 @@ function AdminManagerDashboard() {
 
   return (
     <div className="grid gap-6">
-       <SessionTimerCard />
+       <SessionInfoCard />
        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
