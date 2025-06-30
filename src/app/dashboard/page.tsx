@@ -471,21 +471,6 @@ function AdminManagerDashboard() {
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const [isMounted, setIsMounted] = useState(false);
-  
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  if (!isMounted) {
-    return (
-       <AppLayout>
-         <div className="flex h-[calc(100vh-200px)] w-full items-center justify-center">
-            <Loader2 className="h-12 w-12 animate-spin" />
-         </div>
-       </AppLayout>
-    );
-  }
   
   return (
     <AppLayout>
