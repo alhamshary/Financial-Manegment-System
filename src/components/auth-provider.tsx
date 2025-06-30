@@ -39,7 +39,7 @@ export const TimerContext = createContext<TimerContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
-  const [loading, setLoading] = useState(true); // Only for the initial page load.
+  const [loading, setLoading] = useState(true); // Global loading gate for auth status
 
   const router = useRouter();
   const pathname = usePathname();
@@ -49,74 +49,73 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isSessionLoading, setIsSessionLoading] = useState(true);
   const [activeSessionStartTime, setActiveSessionStartTime] = useState<string | null>(null);
 
+  // Effect 1: Handle Authentication State
+  // This is the single source of truth for the user's auth status.
   useEffect(() => {
-    // This effect runs once on mount to set up the auth listener.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        let loadedUser: User | null = null;
-        let loadedSettings: AppSettings | null = null;
-
-        try {
-          // Both fetches run in parallel for efficiency.
-          const [settingsRes, profileRes] = await Promise.all([
-            supabase.from('app_settings').select('*').eq('id', true).single(),
-            session?.user ? supabase.from('users').select('id, name, role').eq('id', session.user.id).single() : Promise.resolve(null)
-          ]);
-          
-          if (settingsRes.error && settingsRes.error.code !== 'PGRST116') {
-            throw settingsRes.error;
-          }
-           loadedSettings = settingsRes.data || {
-            id: true,
-            office_title: 'المكتب الرئيسي',
-            app_theme: 'theme-green',
-          };
-          
-          if (session?.user && profileRes) {
-            if (profileRes.error) throw profileRes.error;
-            const profile = profileRes.data;
-            loadedUser = {
-              id: profile.id,
-              email: session.user.email!,
-              name: profile.name,
-              role: profile.role as UserRole,
-            };
-          }
-
-        } catch (error: any) {
-          console.error("Auth error:", error);
-          toast({ title: 'خطأ في المصادقة', description: error.message, variant: 'destructive' });
-          loadedUser = null; // Ensure user is null on error
-        } finally {
-          // Update state with the results.
-          setUser(loadedUser);
-          if (loadedSettings) {
-            setSettings(loadedSettings);
-            applyTheme(loadedSettings.app_theme);
-          }
-          // The first time this callback runs, the initial load is complete.
-          setLoading(false);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session?.user) {
+        const { data: profile, error } = await supabase
+          .from('users')
+          .select('id, name, role')
+          .eq('id', session.user.id)
+          .single();
+        
+        if (error) {
+          toast({ title: 'خطأ في جلب الملف الشخصي', description: error.message, variant: 'destructive' });
+          setUser(null);
+        } else {
+          setUser({
+            id: profile.id,
+            email: session.user.email!,
+            name: profile.name,
+            role: profile.role as UserRole,
+          });
         }
+      } else {
+        setUser(null);
       }
-    );
+      // Critical: Set loading to false only after the auth state has been fully determined.
+      setLoading(false);
+    });
 
-    return () => {
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, [toast]);
 
+  // Effect 2: Fetch App Settings
+  // This runs independently and ensures the theme is always applied.
   useEffect(() => {
-    // Redirection logic. This runs whenever loading or user changes.
-    if (loading) return; // Don't do anything while loading.
+    const fetchAppSettings = async () => {
+      const { data, error } = await supabase
+        .from('app_settings')
+        .select('*')
+        .eq('id', true)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') {
+        toast({ title: "خطأ في جلب الإعدادات", description: error.message, variant: "destructive" });
+      } else {
+        const loadedSettings = data || { id: true, office_title: 'المكتب الرئيسي', app_theme: 'theme-green' };
+        setSettings(loadedSettings);
+        applyTheme(loadedSettings.app_theme);
+      }
+    };
+    
+    fetchAppSettings();
+  }, [toast]);
 
+  // Effect 3: Handle Redirection
+  // This is now guarded by a stable `loading` state.
+  useEffect(() => {
+    if (loading) return;
+    
     const isAuthPage = pathname === '/';
-
     if (user && isAuthPage) {
       router.replace('/dashboard');
     } else if (!user && !isAuthPage) {
       router.replace('/');
     }
   }, [user, loading, pathname, router]);
+
 
   const fetchActiveSession = useCallback(async (userId: string) => {
       setIsSessionLoading(true);
@@ -179,13 +178,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
              toast({ title: 'خطأ في إنهاء الجلسة', description: `لم نتمكن من إيقاف الجلسة بشكل صحيح: ${error.message}`, variant: 'destructive'});
         }
     }
-    // onAuthStateChange will fire, setting user to null and triggering redirect.
     await supabase.auth.signOut();
+    // Force redirect to login page after sign out to ensure clean state
+    router.push('/');
   };
 
   const authValue = useMemo(() => ({ user, loading, settings, login, logout }), [user, loading, settings]);
   const timerValue = useMemo(() => ({ sessionDuration, isSessionLoading }), [sessionDuration, isSessionLoading]);
 
+  // The global loading gate. This shows a spinner until auth status is known.
   if (loading) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
