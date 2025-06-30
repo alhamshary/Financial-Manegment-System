@@ -130,11 +130,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user) return; // Guard against multiple calls
 
     // End attendance session in the background. Don't let it block logout.
-    supabase.rpc('end_current_attendance', { user_id_param: user.id })
-      .catch(error => {
-        // Log the error but don't block the user's logout flow.
-        console.error("Background task: Failed to end attendance session on logout:", error);
-      });
+    try {
+      await supabase.rpc('end_current_attendance', { user_id_param: user.id });
+    } catch (error) {
+      // Log the error but don't block the user's logout flow.
+      console.error("Background task: Failed to end attendance session on logout:", error);
+    }
 
     // Sign out immediately. This will trigger the redirect via onAuthStateChange.
     await supabase.auth.signOut();
