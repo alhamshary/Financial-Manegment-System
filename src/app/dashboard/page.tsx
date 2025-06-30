@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Clock, DollarSign, Users, Wrench, Loader2, ShoppingBag, Wallet } from "lucide-react";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
@@ -93,20 +93,13 @@ function EmployeeDashboard() {
   const [servicesToday, setServicesToday] = useState<EmployeeServiceLog[]>([]);
   const [stats, setStats] = useState({ totalRevenue: 0, totalExpenses: 0 });
   const [loading, setLoading] = useState(true);
-  const [dataFetchedForDate, setDataFetchedForDate] = useState<string | null>(null);
+  const lastFetchedDateRef = useRef<string | null>(null);
 
   const fetchEmployeeData = useCallback(async () => {
     if (!user) return;
     
-    const now = new Date();
-    const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-
-    if (dataFetchedForDate !== todayIso) {
-      setLoading(true);
-    }
-
-    const todayStart = startOfDay(now).toISOString();
-    const todayEnd = endOfDay(now).toISOString();
+    const todayStart = startOfDay(new Date()).toISOString();
+    const todayEnd = endOfDay(new Date()).toISOString();
 
     try {
       const [servicesRes, expensesRes] = await Promise.all([
@@ -134,53 +127,55 @@ function EmployeeDashboard() {
 
       setServicesToday(servicesData);
       setStats({ totalRevenue, totalExpenses });
-      setDataFetchedForDate(todayIso);
+      lastFetchedDateRef.current = format(new Date(), "yyyy-MM-dd");
     } catch (error: any) {
         toast({ title: "خطأ في جلب بيانات لوحة التحكم", description: error.message, variant: 'destructive' });
-    } finally {
-        setLoading(false);
     }
-  }, [user, toast, dataFetchedForDate]);
+  }, [user, toast]);
   
+  // Initial data fetch
   useEffect(() => {
     if (user) {
-        fetchEmployeeData();
+        setLoading(true);
+        fetchEmployeeData().finally(() => setLoading(false));
     }
   }, [user, fetchEmployeeData]);
 
+  // Real-time subscriptions
   useEffect(() => {
     if (!user) return;
-    const ordersChannel = supabase
-      .channel(`employee-dashboard-orders-${user.id}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'orders', filter: `user_id=eq.${user.id}` },
-        () => fetchEmployeeData()
-      )
-      .subscribe();
-      
-    const expensesChannel = supabase
-      .channel(`employee-dashboard-expenses-${user.id}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'expenses', filter: `user_id=eq.${user.id}` },
-        () => fetchEmployeeData()
-      )
-      .subscribe();
+    const channels = [
+      supabase
+        .channel(`employee-dashboard-orders-${user.id}`)
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'orders', filter: `user_id=eq.${user.id}` },
+          () => fetchEmployeeData()
+        )
+        .subscribe(),
+      supabase
+        .channel(`employee-dashboard-expenses-${user.id}`)
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'expenses', filter: `user_id=eq.${user.id}` },
+          () => fetchEmployeeData()
+        )
+        .subscribe()
+    ];
 
     return () => {
-      supabase.removeChannel(ordersChannel);
-      supabase.removeChannel(expensesChannel);
+      channels.forEach(channel => supabase.removeChannel(channel));
     };
   }, [user, fetchEmployeeData]);
 
+  // Fetch data on visibility change if date has changed
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        const now = new Date();
-        const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-        if (dataFetchedForDate && dataFetchedForDate !== todayIso) {
-          fetchEmployeeData();
+        const todayStr = format(new Date(), "yyyy-MM-dd");
+        if (lastFetchedDateRef.current && lastFetchedDateRef.current !== todayStr) {
+          setLoading(true);
+          fetchEmployeeData().finally(() => setLoading(false));
         }
       }
     };
@@ -188,7 +183,7 @@ function EmployeeDashboard() {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [dataFetchedForDate, fetchEmployeeData]);
+  }, [fetchEmployeeData]);
 
   const netAmount = stats.totalRevenue - stats.totalExpenses;
 
@@ -275,16 +270,11 @@ function AdminManagerDashboard() {
   });
   const [logs, setLogs] = useState<AdminServiceLog[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dataFetchedForDate, setDataFetchedForDate] = useState<string | null>(null);
+  const lastFetchedDateRef = useRef<string | null>(null);
   
   const fetchAdminData = useCallback(async () => {
     const now = new Date();
     const localTodayDateString = format(now, "yyyy-MM-dd");
-
-    if (dataFetchedForDate !== localTodayDateString) {
-        setLoading(true);
-    }
-
     const todayStart = startOfDay(now).toISOString();
     const todayEnd = endOfDay(now).toISOString();
 
@@ -317,7 +307,7 @@ function AdminManagerDashboard() {
 
       const ordersData = (ordersRes.data as AdminServiceLog[]) || [];
       setLogs(ordersData);
-      setDataFetchedForDate(localTodayDateString);
+      lastFetchedDateRef.current = localTodayDateString;
       
       const totalRevenue = ordersData.reduce((acc: number, log: any) => acc + (log.total || 0), 0);
       const totalExpenses = (expensesRes.data || []).reduce((sum, exp) => sum + exp.amount, 0);
@@ -343,48 +333,49 @@ function AdminManagerDashboard() {
 
     } catch (error: any) {
         toast({ title: "خطأ في جلب بيانات لوحة التحكم", description: error.message, variant: 'destructive' });
-    } finally {
-      setLoading(false);
     }
-  }, [toast, dataFetchedForDate]);
+  }, [toast]);
 
+  // Initial data fetch
   useEffect(() => {
-    fetchAdminData();
+    setLoading(true);
+    fetchAdminData().finally(() => setLoading(false));
   }, [fetchAdminData]);
 
+  // Real-time subscriptions
   useEffect(() => {
-    const ordersChannel = supabase
-      .channel('admin-dashboard-orders')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'orders' },
-        () => fetchAdminData()
-      )
-      .subscribe();
-    
-    const expensesChannel = supabase
-      .channel('admin-dashboard-expenses')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'expenses' },
-        () => fetchAdminData()
-      )
-      .subscribe();
-
+    const channels = [
+      supabase
+        .channel('admin-dashboard-orders')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'orders' },
+          () => fetchAdminData()
+        )
+        .subscribe(),
+      supabase
+        .channel('admin-dashboard-expenses')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'expenses' },
+          () => fetchAdminData()
+        )
+        .subscribe()
+    ];
 
     return () => {
-      supabase.removeChannel(ordersChannel);
-      supabase.removeChannel(expensesChannel);
+      channels.forEach(channel => supabase.removeChannel(channel));
     };
   }, [fetchAdminData]);
 
+  // Fetch data on visibility change if date has changed
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        const now = new Date();
-        const localTodayDateString = format(now, "yyyy-MM-dd");
-        if (dataFetchedForDate && dataFetchedForDate !== localTodayDateString) {
-          fetchAdminData();
+        const todayStr = format(new Date(), "yyyy-MM-dd");
+        if (lastFetchedDateRef.current && lastFetchedDateRef.current !== todayStr) {
+          setLoading(true);
+          fetchAdminData().finally(() => setLoading(false));
         }
       }
     };
@@ -392,7 +383,8 @@ function AdminManagerDashboard() {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [dataFetchedForDate, fetchAdminData]);
+  }, [fetchAdminData]);
+
 
   const paymentMethodLabels = {
     cash: 'كاش',
@@ -524,3 +516,5 @@ export default function DashboardPage() {
     </AppLayout>
   );
 }
+
+    
