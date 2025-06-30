@@ -124,9 +124,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setDbSessionId(null);
       }
       
-      // The 'INITIAL_SESSION' event is fired on page load, once the session is retrieved from storage.
-      // After this event, we can consider the session-specific loading to be complete.
-      // The overall app loading state is handled by the settings fetcher to ensure all data is ready.
       if (event === 'INITIAL_SESSION') {
         setIsSessionLoading(false);
       }
@@ -156,7 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSettings({ id: true, office_title: 'المكتب الرئيسي', app_theme: 'theme-default' });
       }
 
-      setLoading(false); // End loading after settings are fetched
+      setLoading(false);
     };
 
     fetchSettings();

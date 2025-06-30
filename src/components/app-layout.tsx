@@ -26,9 +26,6 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
   const router = useRouter();
   
   useEffect(() => {
-    if (!loading && !user) {
-      router.push("/");
-    }
     if (!loading && user && allowedRoles && !allowedRoles.includes(user.role)) {
       router.push("/dashboard");
     }
