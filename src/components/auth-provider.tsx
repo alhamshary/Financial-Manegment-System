@@ -2,7 +2,7 @@
 "use client";
 
 import type { ReactNode } from 'react';
-import { createContext, useState, useEffect, useContext, useCallback } from 'react';
+import { createContext, useState, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
@@ -36,11 +36,10 @@ export interface TimerContextType {
 export const AuthContext = createContext<AuthContextType | null>(null);
 export const TimerContext = createContext<TimerContextType | null>(null);
 
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
-  const [loading, setLoading] = useState(true); // Always start loading
+  const [loading, setLoading] = useState(true);
 
   const router = useRouter();
   const pathname = usePathname();
@@ -50,29 +49,78 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [sessionDuration, setSessionDuration] = useState('00:00:00');
   const [isSessionLoading, setIsSessionLoading] = useState(true);
 
-  // This effect handles the entire auth flow.
-  useEffect(() => {
-    // 1. Fetch settings once on mount.
-    const fetchSettings = async () => {
-      const { data, error } = await supabase
-        .from('app_settings')
-        .select('*')
-        .eq('id', true)
-        .single();
-      
-      if (error && error.code !== 'PGRST116') {
-        console.error("Error fetching settings:", error);
+  const fetchSessionData = useCallback(async () => {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from('users')
+          .select('id, name, role')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profile) {
+          const loadedUser: User = {
+            id: profile.id,
+            email: session.user.email!,
+            name: profile.name,
+            role: profile.role as UserRole,
+          };
+          setUser(loadedUser);
+        }
       }
-      
-      const finalSettings = data || { id: true, office_title: 'المكتب الرئيسي', app_theme: 'theme-default' };
+    } catch (error) {
+      console.error('Error fetching session:', error);
+    }
+  }, []);
+
+  const fetchInitialData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [settingsData] = await Promise.all([
+        supabase.from('app_settings').select('*').eq('id', true).single(),
+        fetchSessionData(),
+      ]);
+
+      if (settingsData.error && settingsData.error.code !== 'PGRST116') {
+        console.error('Error fetching settings:', settingsData.error);
+        toast({
+          title: 'خطأ في تحميل الإعدادات',
+          description: settingsData.error.message,
+          variant: 'destructive',
+        });
+      }
+
+      const finalSettings =
+        settingsData.data || {
+          id: true,
+          office_title: 'المكتب الرئيسي',
+          app_theme: 'theme-green',
+        };
+
       setSettings(finalSettings);
       applyTheme(finalSettings.app_theme);
-    };
+    } catch (error: any) {
+      console.error('Error in initial data fetch:', error);
+      toast({
+        title: 'خطأ',
+        description: 'فشل تحميل البيانات الأولية.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchSessionData, toast]);
 
-    // 2. Set up the auth state listener. This is the single source of truth for auth status.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+  useEffect(() => {
+    fetchInitialData();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
-        // User is signed in, get their profile
         const { data: profile } = await supabase
           .from('users')
           .select('name, role')
@@ -86,34 +134,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: (profile?.role as UserRole) || 'employee',
         };
         setUser(loadedUser);
-
-        // Auto-start attendance on sign-in or initial session load
-        if (_event === 'SIGNED_IN' || _event === 'INITIAL_SESSION') {
+        
+        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
           try {
             await supabase.rpc('auto_start_attendance', { user_id_param: session.user.id });
           } catch (rpcError: any) {
-            toast({ title: 'خطأ في بدء الجلسة', description: rpcError.message, variant: 'destructive'});
+             toast({ title: 'خطأ في بدء الجلسة', description: rpcError.message, variant: 'destructive'});
           }
         }
       } else {
-        // User is signed out
         setUser(null);
         setSessionStartTime(null);
       }
-      // Critical: set loading to false after the first auth check is complete
-      setLoading(false);
     });
-
-    fetchSettings();
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [toast]);
+  }, [toast, fetchInitialData]);
 
-  // Effect for handling redirection based on auth state
   useEffect(() => {
-    if (loading) return; // Don't redirect while loading
+    if (loading) return;
 
     const isAuthPage = pathname === '/';
     if (user && isAuthPage) {
@@ -123,53 +164,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user, loading, pathname, router]);
 
-  // Effect for managing the session timer
   useEffect(() => {
     if (!user?.id) {
-        setSessionStartTime(null);
-        setIsSessionLoading(false);
-        return;
+      setSessionStartTime(null);
+      setIsSessionLoading(false);
+      return;
     }
     const fetchActiveSession = async () => {
-        setIsSessionLoading(true);
-        const todayIso = new Date().toISOString().split('T')[0];
-        const { data } = await supabase
-            .from('attendance')
-            .select('check_in')
-            .eq('user_id', user.id)
-            .eq('work_date', todayIso)
-            .is('check_out', null)
-            .order('check_in', { ascending: false })
-            .limit(1)
-            .single();
-        if (data) setSessionStartTime(data.check_in);
-        setIsSessionLoading(false);
+      setIsSessionLoading(true);
+      const todayIso = new Date().toISOString().split('T')[0];
+      const { data } = await supabase
+        .from('attendance')
+        .select('check_in')
+        .eq('user_id', user.id)
+        .eq('work_date', todayIso)
+        .is('check_out', null)
+        .order('check_in', { ascending: false })
+        .limit(1)
+        .single();
+      if (data) setSessionStartTime(data.check_in);
+      setIsSessionLoading(false);
     };
     fetchActiveSession();
   }, [user?.id]);
   
   useEffect(() => {
     if (!sessionStartTime) {
-        setSessionDuration('00:00:00');
-        return;
+      setSessionDuration('00:00:00');
+      return;
     }
     const timer = setInterval(() => {
-        const start = new Date(sessionStartTime).getTime();
-        const now = new Date().getTime();
-        const difference = now - start;
-        const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((difference % (1000 * 60)) / 1000);
-        setSessionDuration(`${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`);
+      const start = new Date(sessionStartTime).getTime();
+      const now = new Date().getTime();
+      const difference = now - start;
+      const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((difference % (1000 * 60)) / 1000);
+      setSessionDuration(`${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`);
     }, 1000);
     return () => clearInterval(timer);
   }, [sessionStartTime]);
 
   const login = async (email: string, pass: string): Promise<boolean> => {
     const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
-    if (error) { 
-      console.error("Login error:", error.message); 
-      return false; 
+    if (error) {
+      console.error('Login error:', error.message);
+      return false;
     }
     return true;
   };
@@ -198,9 +238,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={authValue}>
-        <TimerContext.Provider value={timerValue}>
-            {children}
-        </TimerContext.Provider>
+      <TimerContext.Provider value={timerValue}>
+          {children}
+      </TimerContext.Provider>
     </AuthContext.Provider>
   );
 }
