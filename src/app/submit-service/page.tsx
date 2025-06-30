@@ -26,7 +26,7 @@ type Service = Tables<'services'>;
 const formSchema = z.object({
   serviceId: z.string().min(1, { message: "الرجاء تحديد خدمة." }),
   clientName: z.string().min(2, { message: "اسم العميل مطلوب." }),
-  clientPhone: z.string().min(10, { message: "رقم هاتف صحيح مطلوب." }),
+  clientPhone: z.string().optional(),
   quantity: z.coerce.number().min(1, { message: "الكمية يجب أن تكون 1 على الأقل." }),
   discount: z.coerce.number().min(0).optional().default(0),
   notes: z.string().optional(),
@@ -38,7 +38,7 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 export default function SubmitServicePage() {
-  const { toast } = useToast();
+  const { toast } = useAuth();
   const { user } = useAuth();
 
   const [services, setServices] = useState<Service[]>([]);
@@ -108,29 +108,34 @@ export default function SubmitServicePage() {
     setSubmitting(true);
 
     try {
-        // Step 1: Find or create the client manually
         let client: Tables<'clients'> | null = null;
 
-        // Try to find an existing client by phone number
-        const { data: existingClient, error: findError } = await supabase
-            .from('clients')
-            .select('*')
-            .eq('phone', values.clientPhone)
-            .limit(1)
-            .single();
-        
-        // If there's an error and it's not "no rows found", throw it
-        if (findError && findError.code !== 'PGRST116') {
-            throw findError;
+        // Step 1: Find or create the client.
+        // Only search if a non-empty phone number is provided.
+        if (values.clientPhone && values.clientPhone.trim() !== '') {
+            const { data: existingClient, error: findError } = await supabase
+                .from('clients')
+                .select('*')
+                .eq('phone', values.clientPhone)
+                .limit(1)
+                .single();
+            
+            if (findError && findError.code !== 'PGRST116') {
+                throw findError; // Rethrow actual errors
+            }
+            if (existingClient) {
+                client = existingClient;
+            }
         }
         
-        if (existingClient) {
-            client = existingClient;
-        } else {
-            // No client found, so create a new one
+        // If no client was found (either by search or because no phone was given), create one.
+        if (!client) {
             const { data: newClient, error: insertError } = await supabase
                 .from('clients')
-                .insert({ name: values.clientName, phone: values.clientPhone })
+                .insert({ 
+                    name: values.clientName, 
+                    phone: values.clientPhone || null // Handle empty string case
+                })
                 .select()
                 .single();
             
@@ -304,7 +309,7 @@ export default function SubmitServicePage() {
                   name="clientPhone"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>هاتف العميل</FormLabel>
+                      <FormLabel>هاتف العميل (اختياري)</FormLabel>
                       <FormControl>
                         <Input placeholder="123-456-7890" {...field} />
                       </FormControl>
