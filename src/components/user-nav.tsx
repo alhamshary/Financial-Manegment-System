@@ -14,12 +14,20 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/use-auth";
 import { getInitials } from "@/lib/utils";
-import { LogOut, User as UserIcon } from "lucide-react";
+import { LogOut, User as UserIcon, Loader2 } from "lucide-react";
+import { useState } from "react";
 
 export function UserNav() {
   const { user, logout } = useAuth();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   if (!user) return null;
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    await logout();
+    // The redirect in logout will handle the rest, no need to setIsLoggingOut(false)
+  };
 
   return (
     <DropdownMenu>
@@ -48,11 +56,13 @@ export function UserNav() {
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={logout}>
-          <LogOut />
-          <span>تسجيل الخروج</span>
+        <DropdownMenuItem onClick={handleLogout} disabled={isLoggingOut}>
+          {isLoggingOut ? <Loader2 className="animate-spin" /> : <LogOut />}
+          <span>{isLoggingOut ? 'جارِ تسجيل الخروج...' : 'تسجيل الخروج'}</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
+
+    

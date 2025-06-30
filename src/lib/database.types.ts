@@ -304,18 +304,24 @@ export type Database = {
     }
     Functions: {
       auto_start_attendance: {
-        Args: { user_id_param: string }
+        Args: {
+          user_id_param: string
+        }
         Returns: {
           attendance_id: number
           is_new_session: boolean
         }[]
       }
       end_current_attendance: {
-        Args: { user_id_param: string }
+        Args: {
+          user_id_param: string
+        }
         Returns: boolean
       }
       get_today_work_hours: {
-        Args: { user_id_param: string }
+        Args: {
+          user_id_param: string
+        }
         Returns: number
       }
     }
@@ -438,3 +444,5 @@ export const Constants = {
     Enums: {},
   },
 } as const
+
+    

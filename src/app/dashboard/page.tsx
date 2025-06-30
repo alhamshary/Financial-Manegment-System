@@ -29,18 +29,71 @@ type AdminServiceLog = {
 };
 
 function SessionTimerCard() {
-  const { sessionDuration, isSessionLoading } = useAuth();
+  const { user } = useAuth();
+  const [checkInTime, setCheckInTime] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
 
+  const fetchActiveSession = useCallback(async () => {
+    if (!user) return;
+    setIsLoading(true);
+    const todayIso = new Date().toISOString().split('T')[0];
+    const { data, error } = await supabase
+      .from('attendance')
+      .select('check_in')
+      .eq('user_id', user.id)
+      .eq('work_date', todayIso)
+      .is('check_out', null)
+      .order('check_in', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      toast({ title: "خطأ في جلب وقت بدء الجلسة", description: error.message, variant: 'destructive' });
+    } else if (data) {
+      const time = new Date(data.check_in).toLocaleTimeString('ar-EG', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+      setCheckInTime(time);
+    } else {
+      setCheckInTime(null);
+    }
+    setIsLoading(false);
+  }, [user, toast]);
+
+  useEffect(() => {
+    if (user) {
+      fetchActiveSession();
+      
+      const channel = supabase
+        .channel(`dashboard-attendance-${user.id}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'attendance', filter: `user_id=eq.${user.id}` },
+          () => fetchActiveSession()
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [user, fetchActiveSession]);
+  
   return (
     <Card>
       <CardHeader>
-        <CardTitle>مدة الجلسة الحالية</CardTitle>
+        <CardTitle>وقت بدء الجلسة</CardTitle>
       </CardHeader>
       <CardContent>
-        {isSessionLoading ? (
+        {isLoading ? (
           <Loader2 className="h-8 w-8 animate-spin" />
         ) : (
-          <div className="text-4xl font-bold tracking-wider">{sessionDuration}</div>
+          <div className="text-4xl font-bold tracking-wider">
+            {checkInTime ? checkInTime : '--:--'}
+          </div>
         )}
       </CardContent>
     </Card>
@@ -502,3 +555,5 @@ export default function DashboardPage() {
     </AppLayout>
   );
 }
+
+    
