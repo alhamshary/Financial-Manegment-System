@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { ReactNode } from 'react';
@@ -29,58 +30,71 @@ export const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
-  const [loading, setLoading] = useState(true); // Start loading until first auth check is complete
+  const [loading, setLoading] = useState(true);
 
   const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
 
+  const checkUserAndSettings = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const { data: appSettings, error: settingsError } = await supabase
+        .from('app_settings')
+        .select('*')
+        .eq('id', true)
+        .single();
+
+      if (settingsError && settingsError.code !== 'PGRST116') throw settingsError;
+      
+      const loadedSettings = appSettings || { id: true, office_title: 'المكتب الرئيسي', app_theme: 'theme-default' };
+      setSettings(loadedSettings);
+      applyTheme(loadedSettings.app_theme);
+
+      if (session?.user) {
+        const { data: profile, error: profileError } = await supabase
+          .from('users')
+          .select('id, name, role')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profileError) throw profileError;
+
+        setUser({
+          id: profile.id,
+          email: session.user.email!,
+          name: profile.name,
+          role: profile.role as UserRole,
+        });
+      } else {
+        setUser(null);
+      }
+    } catch (error: any) {
+      toast({
+        title: "خطأ في تحميل الجلسة",
+        description: error.message,
+        variant: "destructive",
+      });
+      setUser(null);
+    } finally {
+        // This check ensures we only stop loading on the initial page load
+        if (loading) {
+            setLoading(false);
+        }
+    }
+  }, [toast, loading]);
+
+
   useEffect(() => {
+    // Run the initial check
+    checkUserAndSettings();
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setLoading(true);
-        try {
-          const { data: appSettings, error: settingsError } = await supabase
-            .from('app_settings')
-            .select('*')
-            .eq('id', true)
-            .single();
-
-          if (settingsError && settingsError.code !== 'PGRST116') {
-            throw settingsError;
-          }
-          const loadedSettings = appSettings || { id: true, office_title: 'المكتب الرئيسي', app_theme: 'theme-default' };
-          setSettings(loadedSettings);
-          applyTheme(loadedSettings.app_theme);
-
-          if (session?.user) {
-            const { data: profile, error: profileError } = await supabase
-              .from('users')
-              .select('id, name, role')
-              .eq('id', session.user.id)
-              .single();
-
-            if (profileError) throw profileError;
-
-            setUser({
-              id: profile.id,
-              email: session.user.email!,
-              name: profile.name,
-              role: profile.role as UserRole,
-            });
-          } else {
-            setUser(null);
-          }
-        } catch (error: any) {
-          toast({
-            title: "خطأ في تحميل الجلسة",
-            description: error.message,
-            variant: "destructive",
-          });
-          await supabase.auth.signOut();
-          setUser(null);
-        } finally {
-          setLoading(false);
+      (event, session) => {
+        // For login/logout events, re-validate the session
+        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+           checkUserAndSettings();
         }
       }
     );
@@ -88,10 +102,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       subscription.unsubscribe();
     };
-  }, [toast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
-    if (loading) return;
+    if (loading) return; // Don't redirect until initial load is complete
 
     const isAuthPage = pathname === '/';
     if (user && isAuthPage) {
@@ -107,14 +122,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Login error:', error.message);
       return false;
     }
+    // onAuthStateChange will handle the rest
     return true;
   }, []);
 
   const logout = useCallback(async () => {
     await supabase.auth.signOut();
-    setUser(null);
-    router.replace('/');
-  }, [router]);
+    // onAuthStateChange will set user to null, which will trigger the redirect effect
+  }, []);
 
   const authValue = useMemo(() => ({ user, loading, settings, login, logout }), [user, loading, settings, login, logout]);
 
