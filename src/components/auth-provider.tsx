@@ -76,8 +76,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setSettings(loadedSettings);
             applyTheme(loadedSettings.app_theme);
             
-            await supabase.rpc('auto_start_attendance', { user_id_param: session.user.id });
-
+            // Non-critical: attempt to start attendance session, but don't let it block login.
+            try {
+              await supabase.rpc('auto_start_attendance', { user_id_param: session.user.id });
+            } catch (rpcError: any) {
+              console.error("Failed to start attendance session:", rpcError);
+              toast({ title: 'خطأ في بدء الحضور', description: 'لم نتمكن من بدء جلسة الحضور تلقائيًا.', variant: 'destructive' });
+            }
           } else {
             setUser(null);
             
@@ -102,8 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       subscription.unsubscribe();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     if (loading) return;
