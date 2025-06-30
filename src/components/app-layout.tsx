@@ -1,4 +1,3 @@
-
 "use client"
 import type { ReactNode } from "react";
 import {
@@ -15,6 +14,8 @@ import { UserNav } from "@/components/user-nav";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { supabase } from "@/lib/supabase";
+import { useToast } from "@/hooks/use-toast";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -23,24 +24,38 @@ interface AppLayoutProps {
 
 export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
   const { user, loading, settings } = useAuth();
+  const { toast } = useToast();
   const router = useRouter();
   
   useEffect(() => {
-    // This effect runs only after the initial loading is complete.
-    // AuthProvider now handles the initial redirect. This is a secondary check for role access.
     if (!loading && user && allowedRoles && !allowedRoles.includes(user.role)) {
-      // If the user's role is not allowed for this page, redirect to the dashboard.
       router.push("/dashboard");
     }
   }, [user, loading, router, allowedRoles]);
 
-  // AuthProvider handles the global loading spinner, so we don't render anything until loading is false.
+  useEffect(() => {
+    // This side-effect runs once when the user is confirmed to be logged in.
+    // It's separated from the main auth flow to prevent blocking login.
+    const startAttendance = async () => {
+      if (user?.id) {
+        try {
+          await supabase.rpc('auto_start_attendance', { user_id_param: user.id });
+        } catch (rpcError: any) {
+          console.error("Failed to start attendance session:", rpcError);
+          // This is a non-critical error, so we just log it and maybe show a toast.
+          // It should not prevent the app from working.
+          toast({ title: 'خطأ في بدء الحضور', description: 'لم نتمكن من بدء جلسة الحضور تلقائيًا.', variant: 'destructive' });
+        }
+      }
+    };
+    
+    startAttendance();
+  }, [user?.id, toast]);
+
   if (loading || !user || !settings) {
     return null; 
   }
 
-  // Also, prevent rendering if the user's role is not allowed.
-  // The redirection is handled in the useEffect, but this is a safeguard.
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return null;
   }

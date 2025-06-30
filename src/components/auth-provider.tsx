@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { ReactNode } from 'react';
@@ -23,7 +22,7 @@ export interface AuthContextType {
   loading: boolean;
   settings: AppSettings | null;
   login: (email: string, pass: string) => Promise<boolean>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 // Context
@@ -43,27 +42,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         setLoading(true);
-
         try {
+          // Fetch settings regardless of session state for login page theming
+          const { data: appSettings, error: settingsError } = await supabase
+            .from('app_settings')
+            .select('*')
+            .eq('id', true)
+            .single();
+
+          if (settingsError && settingsError.code !== 'PGRST116') {
+            throw settingsError;
+          }
+
+          const loadedSettings = appSettings || { id: true, office_title: 'المكتب الرئيسي', app_theme: 'theme-default' };
+          setSettings(loadedSettings);
+          applyTheme(loadedSettings.app_theme);
+
           if (session?.user) {
-            const [profileResult, settingsResult] = await Promise.all([
-              supabase
-                .from('users')
-                .select('id, name, role')
-                .eq('id', session.user.id)
-                .single(),
-              supabase
-                .from('app_settings')
-                .select('*')
-                .eq('id', true)
-                .single()
-            ]);
+            const { data: profile, error: profileError } = await supabase
+              .from('users')
+              .select('id, name, role')
+              .eq('id', session.user.id)
+              .single();
 
-            const { data: profile, error: profileError } = profileResult;
             if (profileError) throw profileError;
-
-            const { data: appSettings, error: settingsError } = settingsResult;
-            if (settingsError && settingsError.code !== 'PGRST116') throw settingsError;
 
             setUser({
               id: profile.id,
@@ -71,33 +73,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               name: profile.name,
               role: profile.role as UserRole,
             });
-
-            const loadedSettings = appSettings || { id: true, office_title: 'المكتب الرئيسي', app_theme: 'theme-default' };
-            setSettings(loadedSettings);
-            applyTheme(loadedSettings.app_theme);
-            
-            // Non-critical: attempt to start attendance session, but don't let it block login.
-            try {
-              await supabase.rpc('auto_start_attendance', { user_id_param: session.user.id });
-            } catch (rpcError: any) {
-              console.error("Failed to start attendance session:", rpcError);
-              toast({ title: 'خطأ في بدء الحضور', description: 'لم نتمكن من بدء جلسة الحضور تلقائيًا.', variant: 'destructive' });
-            }
           } else {
             setUser(null);
-            
-            const { data: appSettings, error: settingsError } = await supabase.from('app_settings').select('*').eq('id', true).single();
-            if (settingsError && settingsError.code !== 'PGRST116') throw settingsError;
-
-            const loadedSettings = appSettings || { id: true, office_title: 'المكتب الرئيسي', app_theme: 'theme-default' };
-            setSettings(loadedSettings);
-            applyTheme(loadedSettings.app_theme);
           }
         } catch (error: any) {
-          toast({ title: 'خطأ في تحميل البيانات', description: error.message, variant: 'destructive' });
-          await supabase.auth.signOut();
+          toast({ title: 'خطأ في تحميل الجلسة', description: error.message, variant: 'destructive' });
           setUser(null);
-          setSettings(null);
         } finally {
           setLoading(false);
         }
@@ -130,15 +111,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    if (user) {
-      try {
-        await supabase.rpc('end_current_attendance', { user_id_param: user.id });
-      } catch (error: any) {
-        toast({ title: 'خطأ في إنهاء الجلسة', description: `لم نتمكن من إيقاف الجلسة بشكل صحيح: ${error.message}`, variant: 'destructive' });
-      }
-    }
     await supabase.auth.signOut();
-  }, [user, toast]);
+  }, []);
 
   const authValue = useMemo(() => ({ user, loading, settings, login, logout }), [user, loading, settings, login, logout]);
 
