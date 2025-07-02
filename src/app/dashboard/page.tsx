@@ -33,7 +33,7 @@ function SessionTimerCard() {
   const [checkInTime, setCheckInTime] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
-
+console.log("user Dashboard",user)
   const fetchActiveSession = useCallback(async () => {
     if (!user) return;
     setIsLoading(true);
