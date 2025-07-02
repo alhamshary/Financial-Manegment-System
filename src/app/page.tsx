@@ -9,7 +9,7 @@ export default function LoginPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
-  console.log("user HOME",user)
+  console.log("user HOM",user)
   useEffect(() => {
     if (!loading && user) {
       router.push("/dashboard");
