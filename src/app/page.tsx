@@ -9,14 +9,14 @@ export default function LoginPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
-  console.log("user HOM",user)
+  console.log("user HOME", user)
   useEffect(() => {
-    if ( user) {
+    if (user) {
       router.push("/dashboard");
     }
-  }, [user, loading, router]);
+  }, [user]);
 
-  if(loading ) {
+  if(loading) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
