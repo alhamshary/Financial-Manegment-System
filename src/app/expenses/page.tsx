@@ -97,6 +97,7 @@ export default function ExpensesPage() {
   // Filter State (for admin/manager)
   const [date, setDate] = useState<DateRange | undefined>();
   const [selectedUser, setSelectedUser] = useState<string>("");
+  const [addingExpense, setAddingExpense] = useState<boolean>(false);
 
   const fetchExpenses = useCallback(async () => {
     if (!user) return;
@@ -195,18 +196,26 @@ export default function ExpensesPage() {
         await fetchExpenses();
       }
     } else {
-      const { error } = await supabase
-        .from("expenses")
-        .insert(expenseData as TablesInsert<"expenses">);
-      if (error) {
-        toast({
-          title: "خطأ في إضافة المصروف",
-          description: error.message,
-          variant: "destructive",
-        });
-      } else {
-        toast({ title: "تمت إضافة المصروف بنجاح" });
-        await fetchExpenses();
+      try {
+        if (addingExpense) return;
+        setAddingExpense(true);
+        const { error } = await supabase
+          .from("expenses")
+          .insert(expenseData as TablesInsert<"expenses">);
+        if (error) {
+          toast({
+            title: "خطأ في إضافة المصروف",
+            description: error.message,
+            variant: "destructive",
+          });
+        } else {
+          toast({ title: "تمت إضافة المصروف بنجاح" });
+          await fetchExpenses();
+        }
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setAddingExpense(false);
       }
     }
     handleCloseDialogs();
